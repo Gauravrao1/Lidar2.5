@@ -1,0 +1,29 @@
+# Adaptive Variable-Resolution Grid Configuration
+# DRDO PS-26053
+
+# --- Spatial bounds ---
+R_NEAR: 10.0      # meters — inner boundary (finest resolution zone)
+R_FAR: 100.0      # meters — outer boundary (coarsest resolution zone)
+
+# --- Cell sizes ---
+S_NEAR: 0.05      # meters (5 cm) — cell size at r <= R_NEAR
+S_FAR: 0.50       # meters (50 cm) — cell size at r >= R_FAR
+
+# --- Polar grid sectors ---
+N_SECTORS: 360     # angular divisions (1° per sector)
+
+# --- Z-axis binning ---
+Z_MIN: -3.0        # meters below sensor
+Z_MAX: 3.0         # meters above sensor
+Z_BIN_SIZE: 0.25   # meters per z-bin
+
+# --- Dynamic cell staleness ---
+REFRESH_N: 5       # frames — refresh window for dynamic cells
+DECAY_MAX_AGE: 10  # frames — dynamic cells older than this are pruned
+
+# --- Point handling beyond R_FAR ---
+# Options: "clip" (assign to R_FAR cell size) or "drop" (discard points)
+BEYOND_FAR_POLICY: "clip"
+
+# --- Memory estimation ---
+BYTES_PER_CELL: 48  # estimated bytes per grid cell (key + class + metadata)

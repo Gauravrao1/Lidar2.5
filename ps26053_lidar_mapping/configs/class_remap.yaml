@@ -1,0 +1,73 @@
+# SemanticKITTI 28-class → 4-class remap for DRDO PS-26053
+# Output classes:
+#   0 = Terrain (T)  — drivable/walkable ground surfaces
+#   1 = Static (S)   — permanent structures, vegetation, poles
+#   2 = Dynamic (D)  — moving or potentially moving objects
+#   3 = Ignore (X)   — unlabeled, outlier, sensor artifacts
+#
+# Every raw SemanticKITTI class ID MUST appear here.
+# The loader will fail loudly on any unmapped class.
+
+class_names:
+  0: "Terrain"
+  1: "Static"
+  2: "Dynamic"
+  3: "Ignore"
+
+class_colors:  # RGB for visualization
+  0: [0, 200, 0]      # Green — terrain
+  1: [0, 100, 255]    # Blue — static
+  2: [255, 50, 50]    # Red — dynamic
+  3: [128, 128, 128]  # Gray — ignore
+
+# Raw SemanticKITTI label ID → output class ID
+remap:
+  # --- Ignore (3) ---
+  0: 3    # unlabeled
+  1: 3    # outlier
+
+  # --- Dynamic (2) — vehicles ---
+  10: 2   # car
+  11: 2   # bicycle
+  13: 2   # bus
+  15: 2   # motorcycle
+  16: 2   # on-rails
+  18: 2   # truck
+  20: 2   # other-vehicle
+
+  # --- Dynamic (2) — humans ---
+  30: 2   # person
+  31: 2   # bicyclist
+  32: 2   # motorcyclist
+
+  # --- Terrain (0) — ground surfaces ---
+  40: 0   # road
+  44: 0   # parking
+  48: 0   # sidewalk
+  49: 0   # other-ground
+  60: 0   # lane-marking
+
+  # --- Static (1) — structures ---
+  50: 1   # building
+  51: 1   # fence
+  52: 1   # other-structure
+
+  # --- Static (1) — nature ---
+  70: 1   # vegetation
+  71: 1   # trunk
+  72: 0   # terrain (natural ground → Terrain)
+
+  # --- Static (1) — objects ---
+  80: 1   # pole
+  81: 1   # traffic-sign
+  99: 1   # other-object
+
+  # --- Dynamic (2) — moving variants (multi-scan labels) ---
+  252: 2  # moving-car
+  253: 2  # moving-bicyclist
+  254: 2  # moving-person
+  255: 2  # moving-motorcyclist
+  256: 2  # moving-on-rails
+  257: 2  # moving-bus
+  258: 2  # moving-truck
+  259: 2  # moving-other-vehicle

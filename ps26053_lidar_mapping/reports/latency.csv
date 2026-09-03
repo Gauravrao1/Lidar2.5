@@ -1,0 +1,12 @@
+Metric,Value
+Mean (ms),218.8416999997571
+Median (ms),218.8416999997571
+P95 (ms),239.70666999957757
+FPS,4.569513031570811
+CPU,"Intel64 Family 6 Model 140 Stepping 1, GenuineIntel"
+RAM (GB),7.79
+GPU,None
+
+Frame,Latency (ms)
+1,242.02499999955762
+2,195.6583999999566
