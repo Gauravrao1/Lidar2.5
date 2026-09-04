@@ -8,31 +8,31 @@
 - GPU: None
 
 ## Performance
-- Mean Latency: 218.84 ms
-- FPS: 4.57
+- Mean Latency: 234.92 ms
+- FPS: 4.26
 
 ## Memory
-- Adaptive Cells: 12610
-- Adaptive Memory: 0.58 MB
-- Reduction vs 2D: 99.90%
+- Adaptive Cells: 72212
+- Adaptive Memory: 3.31 MB
+- Reduction vs 2D: 99.43%
 - Reduction vs 3D: 100.00%
 
 ## Segmentation IoU
 ### Range: 0.0-10.0m
-- mIoU: 0.2984
-- Points: 7085
+- mIoU: 0.2926
+- Points: 121085
 ### Range: 10.0-20.0m
-- mIoU: 0.2023
-- Points: 14342
+- mIoU: 0.1708
+- Points: 241064
 ### Range: 20.0-40.0m
-- mIoU: 0.1519
-- Points: 14754
+- mIoU: 0.0045
+- Points: 244990
 ### Range: 40.0-60.0m
-- mIoU: 0.0031
-- Points: 5659
+- mIoU: 0.0000
+- Points: 94378
 ### Range: 60.0-80.0m
 - mIoU: 0.0000
-- Points: 156
+- Points: 514
 ### Range: 80.0-100.0m
 - mIoU: 0.0000
 - Points: 39
