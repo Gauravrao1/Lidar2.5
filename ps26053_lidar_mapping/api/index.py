@@ -9,7 +9,7 @@ os.environ.setdefault(
     "LIDAR_DATA_DIR",
     str(PROJECT_ROOT / "data" / "sample")
 )
-os.environ.setdefault("LIDAR_MAX_FRAMES", "5")
+os.environ.setdefault("LIDAR_MAX_FRAMES", "50")
 
 from src.viz.standalone_dashboard import app
 from src.viz.standalone_dashboard import load_all
