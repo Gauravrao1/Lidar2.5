@@ -244,8 +244,10 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
             "padding": "7px 14px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
             "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900"}),
         html.Div(style={"flex": "1", "margin": "0 10px"}, children=[
-            dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
-                       marks={0: "0", 49: "49"}, updatemode="mouseup",
+                 dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
+                      marks={0: {"label": "0", "style": {"color": TEXT, "fontWeight": "700"}},
+                          49: {"label": "49", "style": {"color": TEXT, "fontWeight": "700"}}},
+                      updatemode="mouseup",
                        tooltip={"placement": "bottom", "always_visible": True,
                                 "style": {"color": TEXT, "backgroundColor": CARD}}),
         ]),
@@ -296,7 +298,7 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
         " | All metrics from actual pipeline execution",
     ]),
 
-    dcc.Interval(id="ticker", interval=1000, n_intervals=0, disabled=True),
+    dcc.Interval(id="ticker", interval=1200, n_intervals=0, disabled=True),
     dcc.Store(id="fi-store", data=0),
     dcc.Store(id="spd-store", data=1000),
 ])
@@ -313,10 +315,10 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
     prevent_initial_call=True)
 def set_speed(a, b, c):
     t = ctx.triggered_id
-    if t == "spd-05": return 1000
-    if t == "spd-1": return 500
-    if t == "spd-2": return 250
-    return 500
+    if t == "spd-05": return 1800
+    if t == "spd-1": return 1200
+    if t == "spd-2": return 900
+    return 1200
 
 # Main controls
 @app.callback(
@@ -427,8 +429,8 @@ def build_simulation(data):
         if not np.any(mask):
             continue
         p = pts[mask]
-        if len(p) > 750:
-            p = p[np.linspace(0, len(p) - 1, 750, dtype=int)]
+        if len(p) > 400:
+            p = p[np.linspace(0, len(p) - 1, 400, dtype=int)]
         fig3d.add_trace(go.Scatter3d(
             x=p[:, 0], y=p[:, 1], z=p[:, 2], mode="markers",
             marker=dict(size=1.5, color=clr, opacity=0.7), name=f"{nm} ({np.sum(mask)})"))
@@ -451,10 +453,10 @@ def build_simulation(data):
         fig2d.add_trace(go.Scatter(x=r * np.cos(th), y=r * np.sin(th), mode="lines",
                                     line=dict(color=clr_r, width=1, dash="dot"),
                                     hoverinfo="skip", showlegend=False))
-    # Subsample cells for rendering (max 1500); the cached grid remains complete.
+    # Subsample cells for rendering (max 800); the cached grid remains complete.
     display_cells = cells
-    if len(cells) > 1500:
-        idx = np.linspace(0, len(cells) - 1, 1500, dtype=int)
+    if len(cells) > 800:
+        idx = np.linspace(0, len(cells) - 1, 800, dtype=int)
         display_cells = [cells[i] for i in idx]
     # Split into old (dim) and recent (bright) based on last_frame
     old_cells = [c for c in display_cells if c[4] < fi - 2]  # older than 2 frames ago
@@ -649,8 +651,8 @@ def build_grid_analysis(data):
 
     # Subsample for rendering speed
     disp = cells
-    if len(cells) > 1500:
-        idx = np.linspace(0, len(cells) - 1, 1500, dtype=int)
+    if len(cells) > 800:
+        idx = np.linspace(0, len(cells) - 1, 800, dtype=int)
         disp = [cells[i] for i in idx]
 
     # 3D view
