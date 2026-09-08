@@ -1,10 +1,10 @@
 """
-Generate realistic LiDAR simulation data — 50 frames with a driving car trajectory.
+Generate realistic LiDAR simulation data — 200 frames with a driving car trajectory.
 
 Creates synthetic point clouds that simulate:
   - Ego vehicle driving forward along a road
   - Static environment (buildings, trees, poles along the road)
-  - Dynamic objects: oncoming car, pedestrian crossing, parked cars
+  - Dynamic objects: 2 oncoming cars, 3 pedestrians, cyclist, overtaking car
   - Realistic point density and noise
 """
 import numpy as np
@@ -17,8 +17,8 @@ DATA_DIR = PROJECT_ROOT / "data" / "sample"
 VELODYNE_DIR = DATA_DIR / "velodyne"
 LABEL_DIR = DATA_DIR / "labels"
 
-NUM_FRAMES = 50
-POINTS_PER_FRAME = 40000
+NUM_FRAMES = 200
+POINTS_PER_FRAME = 55000
 RNG = np.random.default_rng(42)
 
 # SemanticKITTI label IDs
@@ -197,30 +197,101 @@ def generate_frame(frame_id):
     all_pts = []
     all_labels = []
 
-    # Static scene (relative to ego)
+    # Static scene
     for gen in [make_ground_plane, make_buildings, make_vegetation, make_poles, make_parked_cars]:
         pts, labels = gen(ego_x, ego_y)
         all_pts.append(pts)
         all_labels.append(labels)
 
-    # Dynamic objects
-    for gen in [make_oncoming_car, make_pedestrian]:
-        pts, labels = gen(ego_x, ego_y, frame_id)
-        if len(pts) > 0:
-            all_pts.append(pts)
-            all_labels.append(labels)
+    # Dynamic: oncoming car 1 (frames 0-60)
+    pts, labels = make_oncoming_car(ego_x, ego_y, frame_id)
+    if len(pts) > 0:
+        all_pts.append(pts)
+        all_labels.append(labels)
+
+    # Dynamic: oncoming car 2 (frames 80-150)
+    if 80 <= frame_id <= 150:
+        start_x2 = ego_x + 100
+        car_x2 = start_x2 - (frame_id - 80) * 3.5
+        car_y2 = -2.5
+        if car_x2 > ego_x - 20:
+            n2 = 220
+            px = RNG.uniform(car_x2 - 2.2, car_x2 + 2.2, n2)
+            py = RNG.uniform(car_y2 - 0.9, car_y2 + 0.9, n2)
+            pz = RNG.uniform(-1.7, -0.2, n2)
+            pi = RNG.uniform(0.4, 0.8, n2)
+            all_pts.append(np.column_stack([px, py, pz, pi]).astype(np.float32))
+            all_labels.append(np.full(n2, LABEL_MOVING_CAR, dtype=np.uint32))
+
+    # Dynamic: overtaking car (frames 40-90, same direction but faster)
+    if 40 <= frame_id <= 90:
+        ov_x = ego_x - 15 + (frame_id - 40) * 4.0  # faster than ego
+        ov_y = 2.0  # same lane, passing
+        if abs(ov_x - ego_x) < 50:
+            n3 = 180
+            px = RNG.uniform(ov_x - 2.2, ov_x + 2.2, n3)
+            py = RNG.uniform(ov_y - 0.9, ov_y + 0.9, n3)
+            pz = RNG.uniform(-1.7, -0.2, n3)
+            pi = RNG.uniform(0.4, 0.8, n3)
+            all_pts.append(np.column_stack([px, py, pz, pi]).astype(np.float32))
+            all_labels.append(np.full(n3, LABEL_MOVING_CAR, dtype=np.uint32))
+
+    # Dynamic: pedestrian 1 crossing (frames 20-45)
+    pts, labels = make_pedestrian(ego_x, ego_y, frame_id)
+    if len(pts) > 0:
+        all_pts.append(pts)
+        all_labels.append(labels)
+
+    # Dynamic: pedestrian 2 (frames 100-125)
+    if 100 <= frame_id <= 125:
+        prog = (frame_id - 100) / 25.0
+        ped_x = ego_x + 12
+        ped_y = 7 - prog * 14  # right to left
+        n_ped = 55
+        px = RNG.normal(ped_x, 0.15, n_ped)
+        py = RNG.normal(ped_y, 0.15, n_ped)
+        pz = RNG.uniform(-1.7, 0.0, n_ped)
+        pi = RNG.uniform(0.2, 0.5, n_ped)
+        all_pts.append(np.column_stack([px, py, pz, pi]).astype(np.float32))
+        all_labels.append(np.full(n_ped, LABEL_MOVING_PERSON, dtype=np.uint32))
+
+    # Dynamic: pedestrian 3 (frames 160-185)
+    if 160 <= frame_id <= 185:
+        prog = (frame_id - 160) / 25.0
+        ped_x = ego_x + 18
+        ped_y = -5 + prog * 10
+        n_ped = 50
+        px = RNG.normal(ped_x, 0.15, n_ped)
+        py = RNG.normal(ped_y, 0.15, n_ped)
+        pz = RNG.uniform(-1.7, 0.0, n_ped)
+        pi = RNG.uniform(0.2, 0.5, n_ped)
+        all_pts.append(np.column_stack([px, py, pz, pi]).astype(np.float32))
+        all_labels.append(np.full(n_ped, LABEL_MOVING_PERSON, dtype=np.uint32))
+
+    # Dynamic: cyclist (frames 50-130)
+    if 50 <= frame_id <= 130:
+        cyc_x = ego_x + 8 + (frame_id - 50) * 1.5
+        cyc_y = 3.5
+        if abs(cyc_x - ego_x) < 40:
+            n_cyc = 40
+            px = RNG.normal(cyc_x, 0.3, n_cyc)
+            py = RNG.normal(cyc_y, 0.2, n_cyc)
+            pz = RNG.uniform(-1.7, 0.3, n_cyc)
+            pi = RNG.uniform(0.3, 0.6, n_cyc)
+            all_pts.append(np.column_stack([px, py, pz, pi]).astype(np.float32))
+            all_labels.append(np.full(n_cyc, LABEL_MOVING_PERSON, dtype=np.uint32))
 
     all_pts = np.vstack(all_pts).astype(np.float32)
     all_labels = np.concatenate(all_labels).astype(np.uint32)
 
-    # Transform to ego-centric coordinates (subtract ego position)
+    # Transform to ego-centric coordinates
     all_pts[:, 0] -= ego_x
     all_pts[:, 1] -= ego_y
 
     # Add sensor noise
     all_pts[:, :3] += RNG.normal(0, 0.01, all_pts[:, :3].shape).astype(np.float32)
 
-    # Distance-based subsampling (keep more nearby points)
+    # Distance-based subsampling
     dist = np.sqrt(all_pts[:, 0]**2 + all_pts[:, 1]**2)
     keep_prob = np.clip(1.0 - dist / 100, 0.3, 1.0)
     mask = RNG.random(len(all_pts)) < keep_prob

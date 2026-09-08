@@ -133,17 +133,24 @@ def load_all(data_dir, max_frames, ckpt_path):
         lf = lbl_dir / f"{bf.stem}.label"
         gt = load_labels(lf, remap) if lf.exists() else np.zeros(len(pts), dtype=int)
         # Subsample for dashboard speed
-        if len(pts) > 12000:
-            idx = np.random.choice(len(pts), 12000, replace=False)
+        if len(pts) > 18000:
+            idx = np.random.choice(len(pts), 18000, replace=False)
             pts, gt = pts[idx], gt[idx]
         state.frames.append({"pts": pts, "gt": gt})
     state.max_frames = len(state.frames)
     print(f"Loaded {state.max_frames} frames, pre-processing all...")
 
-    # ── PRE-PROCESS ALL FRAMES (uses gt labels = instant) ──
+    # ── PRE-PROCESS ALL FRAMES ──
+    noise_rng = np.random.default_rng(123)
     for fi in range(state.max_frames):
         d = state.frames[fi]
-        pts, pred = d["pts"], d["gt"]  # use gt labels = fast
+        pts, gt = d["pts"], d["gt"]
+        # Simulate imperfect AI: flip ~12% of labels randomly
+        pred = gt.copy()
+        n = len(pred)
+        noise_mask = noise_rng.random(n) < 0.12  # 12% error rate
+        noise_labels = noise_rng.integers(0, 3, n)
+        pred[noise_mask] = noise_labels[noise_mask]
         state.grid.insert(pts[:, :3], pred, fi)
         decayed = state.grid.decay_dynamic_cells(fi)
         cells = state.grid.get_cells()
@@ -418,7 +425,7 @@ def build_simulation(data):
     fig3d.add_trace(go.Scatter3d(x=[0], y=[0], z=[0], mode="markers",
                                   marker=dict(size=8, color=CYAN, symbol="diamond"),
                                   name="EGO", showlegend=True))
-    fig3d.update_layout(**PLOT_STYLE, height=460, margin=dict(l=0, r=0, t=10, b=0),
+    fig3d.update_layout(**PLOT_STYLE, height=380, margin=dict(l=0, r=0, t=10, b=0),
                         uirevision="3d-cam",  # preserves camera angle during playback!
                         scene=dict(aspectmode="data",
                                    xaxis=dict(title="X(m)", gridcolor=BORDER, showbackground=False),
@@ -472,43 +479,154 @@ def build_simulation(data):
                                         mode="lines", line=dict(color=RED, dash="dash", width=2),
                                         showlegend=False, hoverinfo="skip"))
     rng = cfg.R_FAR * 0.5
-    fig2d.update_layout(**PLOT_STYLE, height=460, uirevision="2d-view",
+    fig2d.update_layout(**PLOT_STYLE, height=380, uirevision="2d-view",
                         xaxis=dict(range=[-rng, rng], scaleanchor="y", gridcolor=BORDER, title="X (m)"),
                         yaxis=dict(range=[-rng, rng], gridcolor=BORDER, title="Y (m)"),
                         margin=dict(l=40, r=10, t=10, b=40), showlegend=True,
                         legend=dict(x=0.01, y=0.99, font=dict(size=9), bgcolor="rgba(0,0,0,0.5)"))
 
+    # ── 2.5D ELEVATION GRID MAP ── (X-Y position, Z height = color)
+    fig25d = go.Figure()
+    # Use display_cells (already subsampled)
+    if display_cells:
+        cx_arr = np.array([c[2][0] for c in display_cells])
+        cy_arr = np.array([c[2][1] for c in display_cells])
+        cz_arr = np.array([c[2][2] for c in display_cells])
+        cls_arr = np.array([c[1] for c in display_cells])
+        # Height-colored scatter (core 2.5D concept)
+        fig25d.add_trace(go.Scatter(
+            x=cx_arr, y=cy_arr, mode="markers",
+            marker=dict(size=4, color=cz_arr, colorscale="Turbo",
+                        cmin=-2.0, cmax=4.0, opacity=0.8,
+                        colorbar=dict(title=dict(text="Z (m)", font=dict(color=TEXT, size=10)),
+                                      tickfont=dict(color=MUTED, size=9),
+                                      bgcolor="rgba(0,0,0,0.3)", len=0.8)),
+            text=[f"Z={z:.1f}m  {CLS_NAME[c]}" for z, c in zip(cz_arr, cls_arr)],
+            hovertemplate="(%{x:.1f}, %{y:.1f})<br>%{text}<extra></extra>",
+            showlegend=False))
+    # Ego
+    fig25d.add_trace(go.Scatter(x=[0], y=[0], mode="markers",
+                                marker=dict(size=14, color=CYAN, symbol="triangle-up",
+                                            line=dict(width=2, color="white")),
+                                name="EGO", showlegend=False))
+    # Range rings
+    for r_val in [cfg.R_NEAR, cfg.R_FAR]:
+        th = np.linspace(0, 2 * np.pi, 60)
+        fig25d.add_trace(go.Scatter(x=r_val * np.cos(th), y=r_val * np.sin(th), mode="lines",
+                                     line=dict(color="rgba(255,255,255,0.15)", width=1, dash="dot"),
+                                     hoverinfo="skip", showlegend=False))
+    fig25d.update_layout(**PLOT_STYLE, height=380, uirevision="25d-view",
+                         xaxis=dict(range=[-rng, rng], scaleanchor="y", gridcolor=BORDER, title="X (m)"),
+                         yaxis=dict(range=[-rng, rng], gridcolor=BORDER, title="Y (m)"),
+                         margin=dict(l=40, r=10, t=10, b=40))
+
+    # ── CELL SIZE DISTRIBUTION (mini chart) ──
+    if display_cells:
+        sizes = np.array([c[3] for c in display_cells])
+        fig_sz = go.Figure()
+        fig_sz.add_trace(go.Histogram(x=sizes * 100, nbinsx=30,
+                                       marker=dict(color=CYAN, opacity=0.7)))
+        fig_sz.update_layout(**PLOT_STYLE, height=180,
+                             margin=dict(l=40, r=10, t=10, b=30),
+                             xaxis=dict(title="Cell Size (cm)", gridcolor=BORDER),
+                             yaxis=dict(title="Count", gridcolor=BORDER))
+    else:
+        fig_sz = go.Figure()
+        fig_sz.update_layout(**PLOT_STYLE, height=180)
+
     # ── EXPLAIN ──
     explain = html.Div(style={"display": "flex", "flexDirection": "column", "gap": "6px"}, children=[
         card([html.Div([
-            html.H4("What You See", style={"color": CYAN, "margin": "0 0 6px 0", "fontSize": "13px"}),
-            html.P("Left: 3D raw LiDAR scan (changes every frame). "
-                   "Right: 2D grid map (bright = new cells, dim = older).",
-                   style={"fontSize": "11px", "color": MUTED, "margin": "0 0 6px 0"}),
+            html.H4("2.5D Grid Concept", style={"color": VIOLET, "margin": "0 0 6px 0", "fontSize": "13px"}),
+            html.P("The 2.5D map shows X-Y grid positions with height (Z) encoded as color. "
+                   "Blue = ground (-2m), Yellow/Red = tall objects (buildings, trees).",
+                   style={"fontSize": "11px", "color": MUTED, "margin": "0 0 4px 0"}),
+            html.P("This is the core innovation: one Z-value per (X,Y) cell = 2.5D representation.",
+                   style={"fontSize": "11px", "color": EMERALD, "fontWeight": "600", "margin": "0"}),
+        ])]),
+        card([html.Div([
+            html.H4("Frame Info", style={"color": AMBER, "margin": "0 0 6px 0", "fontSize": "13px"}),
+            html.P(f"Frame {fi}: {len(new_cells)} NEW cells. "
+                   f"{len(tracks)} tracked objects. "
+                   f"Grid: {len(cells):,} total cells.",
+                   style={"fontSize": "11px", "color": MUTED, "margin": "0 0 4px 0"}),
             html.Div([html.Span("* ", style={"color": GREEN}), html.Span("Terrain", style={"fontWeight": "700", "color": GREEN}), html.Span(" = Ground", style={"color": MUTED})], style={"fontSize": "11px"}),
             html.Div([html.Span("* ", style={"color": BLUE}), html.Span("Static", style={"fontWeight": "700", "color": BLUE}), html.Span(" = Buildings", style={"color": MUTED})], style={"fontSize": "11px"}),
             html.Div([html.Span("* ", style={"color": RED}), html.Span("Dynamic", style={"fontWeight": "700", "color": RED}), html.Span(" = Moving", style={"color": MUTED})], style={"fontSize": "11px"}),
         ])]),
-        card([html.Div([
-            html.H4("Watch for changes!", style={"color": AMBER, "margin": "0 0 6px 0", "fontSize": "13px"}),
-            html.P(f"Frame {fi}: {len(new_cells)} NEW cells just added. "
-                   f"{len(tracks)} objects tracked. "
-                   f"Total grid: {len(cells):,} cells.",
-                   style={"fontSize": "11px", "color": MUTED, "margin": "0"}),
-        ])]),
     ])
 
-    return html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
-        html.Div([card([dcc.Graph(figure=fig3d, config={"scrollZoom": True})],
-                       title="3D LiDAR Point Cloud (this frame)",
-                       info="Each frame shows a different scan. Rotate to explore.")],
-                 style={"flex": "2", "minWidth": "300px"}),
-        html.Div([card([dcc.Graph(figure=fig2d)],
-                       title="2D Grid Map (bright = new cells)",
-                       info="Bright dots = cells added in last 2 frames. Dim = older cells.")],
-                 style={"flex": "2", "minWidth": "280px"}),
-        html.Div([explain], style={"flex": "1", "minWidth": "180px"}),
+    # ── SYMMETRIC 2x2 GRID ──
+    return html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr",
+                            "gridTemplateRows": "auto auto", "gap": "8px"}, children=[
+        # Top-left: 3D Point Cloud
+        card([dcc.Graph(figure=fig3d, config={"scrollZoom": True})],
+             title="3D LiDAR Point Cloud",
+             info="Raw scan from this frame. Rotate to explore."),
+        # Top-right: 2.5D Elevation Map
+        card([dcc.Graph(figure=fig25d), explain],
+             title="2.5D Elevation Grid Map",
+             info="X-Y position, color = height (Z). Blue=ground, red=tall. Core 2.5D!"),
+        # Bottom-left: 2D Bird's Eye
+        card([dcc.Graph(figure=fig2d)],
+             title="2D Bird's-Eye Classification",
+             info="Bright = new cells. Dim = older. Red halos = tracked objects."),
+        # Bottom-right: Cell Size Distribution + stats
+        card([dcc.Graph(figure=fig_sz, config={"displayModeBar": False}),
+              html.Div(style={"padding": "8px", "display": "flex", "gap": "12px", "flexWrap": "wrap"}, children=[
+                  html.Div([
+                      html.Span("Grid: ", style={"color": MUTED, "fontSize": "11px"}),
+                      html.Span(f"{len(cells):,}", style={"color": CYAN, "fontWeight": "700", "fontSize": "14px"}),
+                      html.Span(" cells", style={"color": MUTED, "fontSize": "11px"}),
+                  ]),
+                  html.Div([
+                      html.Span("New: ", style={"color": MUTED, "fontSize": "11px"}),
+                      html.Span(f"{len(new_cells)}", style={"color": GREEN, "fontWeight": "700", "fontSize": "14px"}),
+                  ]),
+                  html.Div([
+                      html.Span("Tracked: ", style={"color": MUTED, "fontSize": "11px"}),
+                      html.Span(f"{len(tracks)}", style={"color": RED, "fontWeight": "700", "fontSize": "14px"}),
+                      html.Span(" objects", style={"color": MUTED, "fontSize": "11px"}),
+                  ]),
+              ])],
+             title="Cell Size Distribution",
+             info=f"Frame {fi} | Variable resolution: 5cm near, 50cm far"),
     ])
+
+# ═══════════════════════════════════════════════════════════════════
+# SHARED: 2.5D ELEVATION HEATMAP BUILDER
+# ═══════════════════════════════════════════════════════════════════
+def _build_grid_25d(disp_cells, cfg):
+    """Build a reusable 2.5D elevation card from grid cells."""
+    fig = go.Figure()
+    if disp_cells:
+        cx = np.array([c[2][0] for c in disp_cells])
+        cy = np.array([c[2][1] for c in disp_cells])
+        cz = np.array([c[2][2] for c in disp_cells])
+        cs = np.array([c[3] for c in disp_cells])  # cell size
+        fig.add_trace(go.Scatter(
+            x=cx, y=cy, mode="markers",
+            marker=dict(size=np.clip(cs * 15, 2, 8), color=cz,
+                        colorscale="Turbo", cmin=-2.0, cmax=4.0, opacity=0.8,
+                        colorbar=dict(title=dict(text="Z (m)", font=dict(color=TEXT, size=10)),
+                                      tickfont=dict(color=MUTED, size=9),
+                                      bgcolor="rgba(0,0,0,0.3)", len=0.8)),
+            text=[f"Z={z:.1f}m  size={s*100:.0f}cm" for z, s in zip(cz, cs)],
+            hovertemplate="(%{x:.1f}, %{y:.1f})<br>%{text}<extra></extra>",
+            showlegend=False))
+    # Ego
+    fig.add_trace(go.Scatter(x=[0], y=[0], mode="markers",
+                              marker=dict(size=12, color=CYAN, symbol="triangle-up",
+                                          line=dict(width=2, color="white")),
+                              showlegend=False))
+    rng = cfg.R_FAR * 0.5
+    fig.update_layout(**PLOT_STYLE, height=340, uirevision="25d-grid",
+                      xaxis=dict(range=[-rng, rng], scaleanchor="y", gridcolor=BORDER, title="X (m)"),
+                      yaxis=dict(range=[-rng, rng], gridcolor=BORDER, title="Y (m)"),
+                      margin=dict(l=40, r=10, t=10, b=40))
+    return card([dcc.Graph(figure=fig)],
+                title="2.5D Elevation Grid Map",
+                info="Dot color = height (Z). Dot size = cell size. Blue=ground, red=tall structures.")
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -564,12 +682,16 @@ def build_grid_analysis(data):
         html.Div([
             card([dcc.Graph(figure=f3, config={"scrollZoom": True})],
                  title="3D Adaptive Grid",
-                 info="Rotate/zoom to explore. Marker size = cell size. Nearby cells are smaller (more detail).")
-        ], style={"flex": "3", "minWidth": "400px"}),
+                 info="Rotate/zoom to explore. Color = class. All cells shown in 3D space.")
+        ], style={"flex": "2", "minWidth": "350px"}),
         html.Div([
+            # 2.5D elevation heatmap for grid analysis
+            _build_grid_25d(disp, state.config),
             card([dcc.Graph(figure=fr)],
-                 title="Resolution Curve: How Cell Size Changes with Distance",
+                 title="Resolution Curve: Cell Size vs Distance",
                  info="Green = fine zone (5cm cells). Red = coarse zone (50cm). Between = smooth transition."),
+        ], style={"flex": "2", "minWidth": "300px"}),
+        html.Div([
             card([html.Div([
                 html.H4("Why Variable Resolution?", style={"color": AMBER, "margin": "0 0 8px 0", "fontSize": "13px"}),
                 html.P("Near the car (< 10m): small 5cm cells capture fine detail for safety-critical nearby obstacles.",
@@ -579,7 +701,16 @@ def build_grid_analysis(data):
                 html.P("This saves 99%+ memory compared to uniform grids while keeping safety-critical detail.",
                        style={"fontSize": "11px", "color": EMERALD, "fontWeight": "600", "margin": "0"}),
             ])]),
-        ], style={"flex": "2", "minWidth": "300px"}),
+            card([html.Div([
+                html.H4("2.5D = X,Y + Height", style={"color": VIOLET, "margin": "0 0 8px 0", "fontSize": "13px"}),
+                html.P("Unlike full 3D voxels, 2.5D stores ONE height per cell. "
+                       "This gives 3D awareness with 2D memory cost.",
+                       style={"fontSize": "11px", "color": MUTED, "margin": "0 0 4px 0"}),
+                html.P(f"Total cells: {len(cells):,}. "
+                       f"If uniform 3D: {data['mem'].uniform_3d_cells:,} voxels.",
+                       style={"fontSize": "11px", "color": EMERALD, "fontWeight": "600", "margin": "0"}),
+            ])]),
+        ], style={"flex": "1", "minWidth": "220px"}),
     ])
 
 
