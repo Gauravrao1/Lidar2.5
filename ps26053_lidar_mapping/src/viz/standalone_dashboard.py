@@ -14,7 +14,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.ingestion.kitti_loader import load_class_remap, load_bin, load_labels
-from src.segmentation.pointnet_infer import PointNetBackend
+try:
+    from src.segmentation.pointnet_infer import PointNetBackend
+except ImportError:
+    PointNetBackend = None  # torch not available (e.g. Vercel deploy)
 from src.grid.resolution import GridConfig, load_grid_config, cell_size
 from src.grid.adaptive_grid import AdaptiveGrid
 from src.grid.temporal_fusion import TemporalFusionGrid

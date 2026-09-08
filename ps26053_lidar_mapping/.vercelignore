@@ -1,0 +1,9 @@
+.venv
+.pytest_cache
+__pycache__
+checkpoints
+reports
+tests
+scripts
+.git
+*.pyc
