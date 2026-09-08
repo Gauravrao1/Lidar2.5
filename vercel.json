@@ -1,16 +1,15 @@
 {
     "version": 2,
-    "rootDirectory": "ps26053_lidar_mapping",
     "builds": [
         {
-            "src": "api/index.py",
+            "src": "ps26053_lidar_mapping/api/index.py",
             "use": "@vercel/python"
         }
     ],
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "api/index.py"
+            "dest": "ps26053_lidar_mapping/api/index.py"
         }
     ]
 }
