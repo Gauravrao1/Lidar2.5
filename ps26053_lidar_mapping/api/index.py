@@ -20,7 +20,7 @@ if not (data_dir / "velodyne").is_dir():
 checkpoint = PROJECT_ROOT / "checkpoints" / "pointnet_3class.pth"
 load_all(
     data_dir,
-    int(os.environ["LIDAR_MAX_FRAMES"]),
+    max(50, int(os.environ["LIDAR_MAX_FRAMES"])),
     str(checkpoint) if checkpoint.exists() else None,
 )
 

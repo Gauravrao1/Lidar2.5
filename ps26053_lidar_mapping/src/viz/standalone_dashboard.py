@@ -311,16 +311,16 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
     prevent_initial_call=True)
 def set_speed(a, b, c):
     t = ctx.triggered_id
-    if t == "spd-05": return 2000
-    if t == "spd-1": return 1000
-    if t == "spd-2": return 500
-    return 1000
+    if t == "spd-05": return 1000
+    if t == "spd-1": return 500
+    if t == "spd-2": return 250
+    return 500
 
 # Main controls
 @app.callback(
     Output("fi-store", "data"), Output("ticker", "disabled"),
     Output("ticker", "interval"), Output("btn-play", "children"),
-    Output("btn-play", "style"),
+    Output("btn-play", "style"), Output("slider", "value"),
     Input("btn-prv", "n_clicks"), Input("btn-nxt", "n_clicks"),
     Input("btn-rst", "n_clicks"), Input("btn-play", "n_clicks"),
     Input("ticker", "n_intervals"), Input("slider", "value"),
@@ -335,19 +335,24 @@ def controls(a, b, c, d, e, slider_val, cur, dis, spd):
     stop_style = {**play_style, "background": f"linear-gradient(135deg, {RED}, #dc2626)",
                   "color": "#fff", "boxShadow": f"0 0 15px rgba(239,68,68,0.4)"}
     last = state.max_frames - 1
-    if t == "btn-prv": return max(0, cur - 1), dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style
-    if t == "btn-nxt": return min(last, cur + 1), dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style
-    if t == "btn-rst": return 0, True, spd, "PLAY", go_style
+    if t == "btn-prv":
+        frame = max(0, cur - 1)
+        return frame, dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style, frame
+    if t == "btn-nxt":
+        frame = min(last, cur + 1)
+        return frame, dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style, frame
+    if t == "btn-rst": return 0, True, spd, "PLAY", go_style, 0
     if t == "btn-play":
         new_dis = not dis
-        return cur, new_dis, spd, "PLAY" if new_dis else "PAUSE", go_style if new_dis else stop_style
+        return cur, new_dis, spd, "PLAY" if new_dis else "PAUSE", go_style if new_dis else stop_style, cur
     if t == "ticker":
         nxt = min(cur + 1, last)
         if nxt >= last:
-            return last, True, spd, "PLAY", go_style  # auto-stop at end
-        return nxt, dis, spd, "PAUSE", stop_style
-    if t == "slider": return slider_val, dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style
-    return cur, dis, spd, "PLAY", go_style
+            return last, True, spd, "PLAY", go_style, last  # auto-stop at end
+        return nxt, dis, spd, "PAUSE", stop_style, nxt
+    if t == "slider":
+        return slider_val, dis, spd, "PAUSE" if not dis else "PLAY", stop_style if not dis else go_style, slider_val
+    return cur, dis, spd, "PLAY", go_style, cur
 
 
 @app.callback(
