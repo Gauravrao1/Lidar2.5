@@ -2,6 +2,15 @@
 name = "lidar2-5"
 version = "0.1.0"
 requires-python = ">=3.12,<3.15"
+dependencies = [
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "psutil>=5.9",
+    "scipy>=1.11",
+    "plotly>=5.18",
+    "dash>=2.14",
+    "pandas>=2.1"
+]
 
 [tool.vercel]
-entrypoint = "src.viz.standalone_dashboard:app"
+entrypoint = "api/index.py"
