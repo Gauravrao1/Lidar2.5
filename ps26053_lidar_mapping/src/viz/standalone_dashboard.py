@@ -244,8 +244,10 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
             "padding": "7px 14px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
             "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900"}),
         html.Div(style={"flex": "1", "margin": "0 10px"}, children=[
-            dcc.Slider(id="slider", min=0, max=1, value=0, step=1,
-                       marks=None, tooltip={"placement": "bottom", "always_visible": True}),
+            dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
+                       marks={0: "0", 49: "49"}, updatemode="mouseup",
+                       tooltip={"placement": "bottom", "always_visible": True,
+                                "style": {"color": TEXT, "backgroundColor": CARD}}),
         ]),
         html.Div(id="frame-lbl", style={"fontSize": "16px", "fontWeight": "800",
                                           "color": CYAN, "minWidth": "120px", "textAlign": "right",
@@ -363,7 +365,7 @@ def render(fi, tab):
     if state.max_frames == 0:
         return html.Div("No data"), html.Div("No data"), "-", 1
 
-    # All data is pre-processed -- just read cache (instant!)
+    # All data is pre-processed; only the selected frame is rendered.
     fi = min(fi, len(state.history) - 1)
     data = state.history[fi]
 
@@ -425,8 +427,8 @@ def build_simulation(data):
         if not np.any(mask):
             continue
         p = pts[mask]
-        if len(p) > 2000:
-            p = p[np.random.choice(len(p), 2000, replace=False)]
+        if len(p) > 750:
+            p = p[np.linspace(0, len(p) - 1, 750, dtype=int)]
         fig3d.add_trace(go.Scatter3d(
             x=p[:, 0], y=p[:, 1], z=p[:, 2], mode="markers",
             marker=dict(size=1.5, color=clr, opacity=0.7), name=f"{nm} ({np.sum(mask)})"))
@@ -449,10 +451,10 @@ def build_simulation(data):
         fig2d.add_trace(go.Scatter(x=r * np.cos(th), y=r * np.sin(th), mode="lines",
                                     line=dict(color=clr_r, width=1, dash="dot"),
                                     hoverinfo="skip", showlegend=False))
-    # Subsample cells for rendering (max 4000)
+    # Subsample cells for rendering (max 1500); the cached grid remains complete.
     display_cells = cells
-    if len(cells) > 4000:
-        idx = np.random.choice(len(cells), 4000, replace=False)
+    if len(cells) > 1500:
+        idx = np.linspace(0, len(cells) - 1, 1500, dtype=int)
         display_cells = [cells[i] for i in idx]
     # Split into old (dim) and recent (bright) based on last_frame
     old_cells = [c for c in display_cells if c[4] < fi - 2]  # older than 2 frames ago
@@ -647,8 +649,8 @@ def build_grid_analysis(data):
 
     # Subsample for rendering speed
     disp = cells
-    if len(cells) > 4000:
-        idx = np.random.choice(len(cells), 4000, replace=False)
+    if len(cells) > 1500:
+        idx = np.linspace(0, len(cells) - 1, 1500, dtype=int)
         disp = [cells[i] for i in idx]
 
     # 3D view
