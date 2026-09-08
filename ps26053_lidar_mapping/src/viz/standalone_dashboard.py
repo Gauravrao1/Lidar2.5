@@ -300,7 +300,7 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
 
     dcc.Interval(id="ticker", interval=1200, n_intervals=0, disabled=True),
     dcc.Store(id="fi-store", data=0),
-    dcc.Store(id="spd-store", data=1000),
+    dcc.Store(id="spd-store", data=1200),
 ])
 
 
@@ -361,11 +361,11 @@ def controls(a, b, c, d, e, slider_val, cur, dis, spd):
 
 @app.callback(
     Output("kpis", "children"), Output("tab-body", "children"),
-    Output("frame-lbl", "children"), Output("slider", "max"),
+    Output("frame-lbl", "children"), Output("slider", "max"), Output("slider", "marks"),
     Input("fi-store", "data"), Input("tabs", "value"))
 def render(fi, tab):
     if state.max_frames == 0:
-        return html.Div("No data"), html.Div("No data"), "-", 1
+        return html.Div("No data"), html.Div("No data"), "-", 1, {}
 
     # All data is pre-processed; only the selected frame is rendered.
     fi = min(fi, len(state.history) - 1)
@@ -408,7 +408,12 @@ def render(fi, tab):
     else:
         body = html.Div("Select a tab")
 
-    return kpi_row, body, f"Frame {fi} / {state.max_frames-1}", max(0, state.max_frames - 1)
+    last = max(0, state.max_frames - 1)
+    marks = {
+        0: {"label": "0", "style": {"color": TEXT, "fontWeight": "700"}},
+        last: {"label": str(last), "style": {"color": TEXT, "fontWeight": "700"}},
+    }
+    return kpi_row, body, f"Frame {fi} / {last}", last, marks
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -429,8 +434,8 @@ def build_simulation(data):
         if not np.any(mask):
             continue
         p = pts[mask]
-        if len(p) > 400:
-            p = p[np.linspace(0, len(p) - 1, 400, dtype=int)]
+        if len(p) > 200:
+            p = p[np.linspace(0, len(p) - 1, 200, dtype=int)]
         fig3d.add_trace(go.Scatter3d(
             x=p[:, 0], y=p[:, 1], z=p[:, 2], mode="markers",
             marker=dict(size=1.5, color=clr, opacity=0.7), name=f"{nm} ({np.sum(mask)})"))
@@ -453,10 +458,10 @@ def build_simulation(data):
         fig2d.add_trace(go.Scatter(x=r * np.cos(th), y=r * np.sin(th), mode="lines",
                                     line=dict(color=clr_r, width=1, dash="dot"),
                                     hoverinfo="skip", showlegend=False))
-    # Subsample cells for rendering (max 800); the cached grid remains complete.
+    # Subsample cells for rendering (max 400); the cached grid remains complete.
     display_cells = cells
-    if len(cells) > 800:
-        idx = np.linspace(0, len(cells) - 1, 800, dtype=int)
+    if len(cells) > 400:
+        idx = np.linspace(0, len(cells) - 1, 400, dtype=int)
         display_cells = [cells[i] for i in idx]
     # Split into old (dim) and recent (bright) based on last_frame
     old_cells = [c for c in display_cells if c[4] < fi - 2]  # older than 2 frames ago
@@ -478,7 +483,7 @@ def build_simulation(data):
     # Ego
     fig2d.add_trace(go.Scatter(x=[0], y=[0], mode="markers",
                                 marker=dict(size=14, color=CYAN, symbol="triangle-up",
-                                            line=dict(width=2, color="white")),
+                                            line=dict(width=2, color=CYAN)),
                                 showlegend=False))
     # Tracks
     for t in tracks:
@@ -519,7 +524,7 @@ def build_simulation(data):
     # Ego
     fig25d.add_trace(go.Scatter(x=[0], y=[0], mode="markers",
                                 marker=dict(size=14, color=CYAN, symbol="triangle-up",
-                                            line=dict(width=2, color="white")),
+                                            line=dict(width=2, color=CYAN)),
                                 name="EGO", showlegend=False))
     # Range rings
     for r_val in [cfg.R_NEAR, cfg.R_FAR]:
@@ -629,7 +634,7 @@ def _build_grid_25d(disp_cells, cfg):
     # Ego
     fig.add_trace(go.Scatter(x=[0], y=[0], mode="markers",
                               marker=dict(size=12, color=CYAN, symbol="triangle-up",
-                                          line=dict(width=2, color="white")),
+                                          line=dict(width=2, color=CYAN)),
                               showlegend=False))
     rng = cfg.R_FAR * 0.5
     fig.update_layout(**PLOT_STYLE, height=340, uirevision="25d-grid",
@@ -651,8 +656,8 @@ def build_grid_analysis(data):
 
     # Subsample for rendering speed
     disp = cells
-    if len(cells) > 800:
-        idx = np.linspace(0, len(cells) - 1, 800, dtype=int)
+    if len(cells) > 400:
+        idx = np.linspace(0, len(cells) - 1, 400, dtype=int)
         disp = [cells[i] for i in idx]
 
     # 3D view
@@ -744,9 +749,9 @@ def build_tracking(data):
     for t in tracks:
         fig.add_trace(go.Scatter(x=[t["cx"]], y=[t["cy"]], mode="markers+text",
                                   text=[f"ID:{t['id']}"], textposition="top center",
-                                  textfont=dict(size=10, color="white"),
+                                  textfont=dict(size=10, color=TEXT),
                                   marker=dict(size=16, color=RED, symbol="circle",
-                                              line=dict(width=2, color="white")),
+                                              line=dict(width=2, color=CYAN)),
                                   name=f"Object {t['id']}"))
         # Velocity arrow
         vlen = (t["vx"]**2 + t["vy"]**2)**0.5
