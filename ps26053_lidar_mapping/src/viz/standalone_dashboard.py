@@ -131,13 +131,15 @@ def load_all(data_dir, max_frames, ckpt_path):
     vel_dir = Path(data_dir) / "velodyne"
     lbl_dir = Path(data_dir) / "labels"
     bins = sorted(vel_dir.glob("*.bin"))[:max_frames]
+    is_vercel = os.environ.get("VERCEL") == "1"
+    sub_limit = 8000 if is_vercel else 18000  # lighter on Vercel
     for bf in bins:
         pts = load_bin(bf)
         lf = lbl_dir / f"{bf.stem}.label"
         gt = load_labels(lf, remap) if lf.exists() else np.zeros(len(pts), dtype=int)
         # Subsample for dashboard speed
-        if len(pts) > 18000:
-            idx = np.random.choice(len(pts), 18000, replace=False)
+        if len(pts) > sub_limit:
+            idx = np.random.choice(len(pts), sub_limit, replace=False)
             pts, gt = pts[idx], gt[idx]
         state.frames.append({"pts": pts, "gt": gt})
     state.max_frames = len(state.frames)

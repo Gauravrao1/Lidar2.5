@@ -5,11 +5,7 @@
             "src": "ps26053_lidar_mapping/api/index.py",
             "use": "@vercel/python",
             "config": {
-                "includeFiles": [
-                    "ps26053_lidar_mapping/data/sample/velodyne/*.bin",
-                    "ps26053_lidar_mapping/data/sample/labels/*.label",
-                    "ps26053_lidar_mapping/configs/*.yaml"
-                ]
+                "maxLambdaSize": "50mb"
             }
         }
     ],
@@ -18,5 +14,11 @@
             "src": "/(.*)",
             "dest": "ps26053_lidar_mapping/api/index.py"
         }
-    ]
+    ],
+    "functions": {
+        "ps26053_lidar_mapping/api/index.py": {
+            "maxDuration": 60,
+            "memory": 1024
+        }
+    }
 }

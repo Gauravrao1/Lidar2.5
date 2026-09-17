@@ -5,11 +5,7 @@
             "src": "api/index.py",
             "use": "@vercel/python",
             "config": {
-                "includeFiles": [
-                    "data/sample/velodyne/*.bin",
-                    "data/sample/labels/*.label",
-                    "configs/*.yaml"
-                ]
+                "maxLambdaSize": "50mb"
             }
         }
     ],
@@ -18,5 +14,11 @@
             "src": "/(.*)",
             "dest": "api/index.py"
         }
-    ]
+    ],
+    "functions": {
+        "api/index.py": {
+            "maxDuration": 60,
+            "memory": 1024
+        }
+    }
 }
