@@ -226,46 +226,66 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
     ]),
 
     # ── CONTROLS ──────────────────────────────────────────────────
-    html.Div(style={"padding": "10px 24px", "display": "flex", "alignItems": "center", "gap": "10px",
+    # Custom CSS for a thick, visible slider
+    slider_css = html.Style("""
+        #slider .rc-slider-rail { background: #1e293b !important; height: 10px !important; border-radius: 5px !important; }
+        #slider .rc-slider-track { background: linear-gradient(90deg, #06b6d4, #8b5cf6) !important; height: 10px !important; border-radius: 5px !important; box-shadow: 0 0 12px rgba(6,182,212,0.4) !important; }
+        #slider .rc-slider-handle { width: 22px !important; height: 22px !important; border: 3px solid #06b6d4 !important; background: #111827 !important; margin-top: -6px !important; box-shadow: 0 0 10px rgba(6,182,212,0.6) !important; opacity: 1 !important; }
+        #slider .rc-slider-handle:hover { border-color: #8b5cf6 !important; box-shadow: 0 0 16px rgba(139,92,246,0.6) !important; }
+        #slider .rc-slider-handle:active { box-shadow: 0 0 20px rgba(139,92,246,0.8) !important; }
+        #slider .rc-slider-dot { display: none !important; }
+        #slider .rc-slider-mark-text { font-size: 11px !important; font-weight: 700 !important; }
+        #slider .rc-slider-tooltip-inner { background: #111827 !important; border: 1px solid #06b6d4 !important; font-weight: 700 !important; font-size: 13px !important; padding: 4px 10px !important; }
+    """),
+
+    html.Div(style={"padding": "12px 24px 6px 24px",
                      "borderBottom": f"1px solid {BORDER}",
                      "background": "linear-gradient(180deg, #131b2e, #0b0f19)"}, children=[
-        html.Button("RESET", id="btn-rst", n_clicks=0, style={
-            "padding": "7px 16px", "border": f"2px solid {AMBER}", "backgroundColor": "transparent",
-            "color": AMBER, "borderRadius": "8px", "cursor": "pointer", "fontSize": "11px",
-            "fontWeight": "700", "letterSpacing": "1px"}),
-        html.Button("<<", id="btn-prv", n_clicks=0, style={
-            "padding": "7px 14px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
-            "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900"}),
-        html.Button("PLAY", id="btn-play", n_clicks=0, style={
-            "padding": "8px 28px", "border": "none",
-            "background": f"linear-gradient(135deg, {GREEN}, {EMERALD})",
-            "color": "#fff", "borderRadius": "10px", "cursor": "pointer",
-            "fontWeight": "800", "fontSize": "14px", "letterSpacing": "2px",
-            "boxShadow": f"0 0 15px rgba(16,185,129,0.4)"}),
-        html.Button(">>", id="btn-nxt", n_clicks=0, style={
-            "padding": "7px 14px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
-            "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900"}),
-        html.Div(style={"flex": "1", "margin": "0 10px"}, children=[
-                 dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
-                      marks={0: {"label": "0", "style": {"color": TEXT, "fontWeight": "700"}},
-                          49: {"label": "49", "style": {"color": TEXT, "fontWeight": "700"}}},
-                      updatemode="mouseup",
-                       tooltip={"placement": "bottom", "always_visible": True,
-                                "style": {"color": TEXT, "backgroundColor": CARD}}),
+        # Row 1: Buttons + Frame Label + Speed
+        html.Div(style={"display": "flex", "alignItems": "center", "gap": "10px",
+                         "marginBottom": "10px"}, children=[
+            html.Button("RESET", id="btn-rst", n_clicks=0, style={
+                "padding": "8px 18px", "border": f"2px solid {AMBER}", "backgroundColor": "transparent",
+                "color": AMBER, "borderRadius": "8px", "cursor": "pointer", "fontSize": "11px",
+                "fontWeight": "700", "letterSpacing": "1px"}),
+            html.Button("◀◀", id="btn-prv", n_clicks=0, style={
+                "padding": "8px 16px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
+                "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "13px", "fontWeight": "900"}),
+            html.Button("PLAY", id="btn-play", n_clicks=0, style={
+                "padding": "10px 36px", "border": "none",
+                "background": f"linear-gradient(135deg, {GREEN}, {EMERALD})",
+                "color": "#fff", "borderRadius": "10px", "cursor": "pointer",
+                "fontWeight": "800", "fontSize": "15px", "letterSpacing": "2px",
+                "boxShadow": f"0 0 15px rgba(16,185,129,0.4)"}),
+            html.Button("▶▶", id="btn-nxt", n_clicks=0, style={
+                "padding": "8px 16px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
+                "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "13px", "fontWeight": "900"}),
+            html.Div(style={"flex": "1"}),  # spacer
+            html.Div(id="frame-lbl", style={"fontSize": "18px", "fontWeight": "800",
+                                              "color": CYAN, "textAlign": "center",
+                                              "textShadow": f"0 0 10px rgba(6,182,212,0.5)",
+                                              "padding": "4px 16px",
+                                              "border": f"1px solid {BORDER}", "borderRadius": "8px",
+                                              "background": "rgba(6,182,212,0.05)"}),
+            html.Div(style={"display": "flex", "gap": "4px", "marginLeft": "8px"}, children=[
+                html.Button("0.5x", id="spd-05", n_clicks=0, style={
+                    "padding": "6px 12px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
+                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px"}),
+                html.Button("1x", id="spd-1", n_clicks=0, style={
+                    "padding": "6px 12px", "border": f"2px solid {CYAN}", "backgroundColor": CARD,
+                    "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px", "fontWeight": "700"}),
+                html.Button("2x", id="spd-2", n_clicks=0, style={
+                    "padding": "6px 12px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
+                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px"}),
+            ]),
         ]),
-        html.Div(id="frame-lbl", style={"fontSize": "16px", "fontWeight": "800",
-                                          "color": CYAN, "minWidth": "120px", "textAlign": "right",
-                                          "textShadow": f"0 0 10px rgba(6,182,212,0.5)"}),
-        html.Div(style={"display": "flex", "gap": "4px"}, children=[
-            html.Button("0.5x", id="spd-05", n_clicks=0, style={
-                "padding": "5px 8px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
-                "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px"}),
-            html.Button("1x", id="spd-1", n_clicks=0, style={
-                "padding": "5px 8px", "border": f"2px solid {CYAN}", "backgroundColor": CARD,
-                "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px", "fontWeight": "700"}),
-            html.Button("2x", id="spd-2", n_clicks=0, style={
-                "padding": "5px 8px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
-                "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px"}),
+        # Row 2: Full-width slider
+        html.Div(style={"padding": "0 4px 8px 4px"}, children=[
+            dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
+                       marks={0: {"label": "0", "style": {"color": TEXT, "fontWeight": "700"}},
+                              49: {"label": "49", "style": {"color": TEXT, "fontWeight": "700"}}},
+                       updatemode="mouseup",
+                       tooltip={"placement": "top", "always_visible": True}),
         ]),
     ]),
 
