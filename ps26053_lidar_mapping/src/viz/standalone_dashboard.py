@@ -195,6 +195,22 @@ def load_all(data_dir, max_frames, ckpt_path):
 # ═══════════════════════════════════════════════════════════════════
 app = Dash(__name__, title="Adaptive LiDAR Mapping", suppress_callback_exceptions=True)
 
+# Custom CSS for slider styling (thick track, large handle, glow)
+app.index_string = '''<!DOCTYPE html>
+<html><head>{%metas%}<title>{%title%}</title>{%favicon%}{%css%}
+<style>
+    #slider .rc-slider-rail { background: #1e293b !important; height: 10px !important; border-radius: 5px !important; }
+    #slider .rc-slider-track { background: linear-gradient(90deg, #06b6d4, #8b5cf6) !important; height: 10px !important; border-radius: 5px !important; box-shadow: 0 0 12px rgba(6,182,212,0.4) !important; }
+    #slider .rc-slider-handle { width: 22px !important; height: 22px !important; border: 3px solid #06b6d4 !important; background: #111827 !important; margin-top: -6px !important; box-shadow: 0 0 10px rgba(6,182,212,0.6) !important; opacity: 1 !important; }
+    #slider .rc-slider-handle:hover { border-color: #8b5cf6 !important; box-shadow: 0 0 16px rgba(139,92,246,0.6) !important; }
+    #slider .rc-slider-handle:active { box-shadow: 0 0 20px rgba(139,92,246,0.8) !important; }
+    #slider .rc-slider-dot { display: none !important; }
+    #slider .rc-slider-mark-text { font-size: 12px !important; font-weight: 700 !important; color: #e2e8f0 !important; }
+    #slider .rc-slider-tooltip-inner { background: #111827 !important; border: 1px solid #06b6d4 !important; font-weight: 700 !important; font-size: 14px !important; padding: 4px 12px !important; color: #06b6d4 !important; }
+    body { margin: 0; }
+</style>
+</head><body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body></html>'''
+
 app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
                               "fontFamily": "'Inter','Segoe UI',sans-serif", "color": TEXT}, children=[
 
@@ -226,17 +242,6 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
     ]),
 
     # ── CONTROLS ──────────────────────────────────────────────────
-    # Custom CSS for a thick, visible slider
-    slider_css = html.Style("""
-        #slider .rc-slider-rail { background: #1e293b !important; height: 10px !important; border-radius: 5px !important; }
-        #slider .rc-slider-track { background: linear-gradient(90deg, #06b6d4, #8b5cf6) !important; height: 10px !important; border-radius: 5px !important; box-shadow: 0 0 12px rgba(6,182,212,0.4) !important; }
-        #slider .rc-slider-handle { width: 22px !important; height: 22px !important; border: 3px solid #06b6d4 !important; background: #111827 !important; margin-top: -6px !important; box-shadow: 0 0 10px rgba(6,182,212,0.6) !important; opacity: 1 !important; }
-        #slider .rc-slider-handle:hover { border-color: #8b5cf6 !important; box-shadow: 0 0 16px rgba(139,92,246,0.6) !important; }
-        #slider .rc-slider-handle:active { box-shadow: 0 0 20px rgba(139,92,246,0.8) !important; }
-        #slider .rc-slider-dot { display: none !important; }
-        #slider .rc-slider-mark-text { font-size: 11px !important; font-weight: 700 !important; }
-        #slider .rc-slider-tooltip-inner { background: #111827 !important; border: 1px solid #06b6d4 !important; font-weight: 700 !important; font-size: 13px !important; padding: 4px 10px !important; }
-    """),
 
     html.Div(style={"padding": "12px 24px 6px 24px",
                      "borderBottom": f"1px solid {BORDER}",
