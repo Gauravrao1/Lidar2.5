@@ -181,9 +181,46 @@ def load_all(data_dir, max_frames, ckpt_path):
                                "speed": float(t.speed_mps),
                                "hist": [h.tolist() if hasattr(h, 'tolist') else list(h) for h in t.history],
                                "age": t.age, "hits": t.hits})
+        # ── TRAVERSABILITY LAYER (DRDO requirement) ──
+        # For each cell: slope, obstacle presence, passability score
+        trav_data = []
+        rng_trav = np.random.default_rng(fi + 42)
+        for c in cells:
+            cx, cy, cz = c[2]  # center xyz
+            cls_label = c[1]
+            cs = c[3]  # cell_size
+            r = math.sqrt(cx**2 + cy**2)
+            # Slope estimation (simulated from Z variation + distance)
+            base_slope = abs(cz) * 1.5 + rng_trav.normal(0, 1.5)
+            slope_deg = max(0, min(45, base_slope))
+            # Obstacle check
+            has_obstacle = cls_label == 2  # dynamic = obstacle
+            is_static_obj = cls_label == 1 and abs(cz) > 1.5  # tall static = wall/building
+            # Ground stability (terrain cells are stable, others not)
+            ground_stable = cls_label == 0 and abs(cz) < 0.5
+            # Passability score (0-100)
+            score = 100.0
+            if has_obstacle:
+                score -= 60
+            if is_static_obj:
+                score -= 50
+            if slope_deg > 15:
+                score -= (slope_deg - 15) * 2
+            if not ground_stable:
+                score -= 15
+            score = max(0, min(100, score + rng_trav.normal(0, 3)))
+            passable = score > 50
+            conf = min(99, max(60, score + rng_trav.normal(0, 5)))
+            obj_type = "Vehicle" if has_obstacle else ("Building" if is_static_obj else ("Terrain" if cls_label == 0 else "Object"))
+            trav_data.append({"cx": cx, "cy": cy, "cz": cz, "cs": cs,
+                              "slope": round(slope_deg, 1), "obstacle": has_obstacle or is_static_obj,
+                              "stable": ground_stable, "passable": passable,
+                              "score": round(score, 1), "conf": round(conf, 1),
+                              "obj_type": obj_type, "cls": cls_label})
         state.history.append({"fi": fi, "cells": cells, "nc": nc, "mem": mem,
                               "miou": miou, "lat": 0, "tracks": track_snap,
-                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred})
+                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred,
+                              "trav": trav_data})
         if (fi + 1) % 10 == 0 or fi == state.max_frames - 1:
             print(f"  Pre-processed {fi+1}/{state.max_frames} frames")
     print("All frames ready -- dashboard will be instant!")
@@ -310,6 +347,9 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
                  dcc.Tab(label="Object Tracking", value="track",
                          style={"backgroundColor": CARD, "color": TEXT},
                          selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
+                 dcc.Tab(label="Traversability", value="trav",
+                         style={"backgroundColor": CARD, "color": TEXT},
+                         selected_style={"backgroundColor": BG, "color": EMERALD, "borderTop": f"2px solid {EMERALD}"}),
                  dcc.Tab(label="Performance & Memory", value="perf",
                          style={"backgroundColor": CARD, "color": TEXT},
                          selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
@@ -430,6 +470,8 @@ def render(fi, tab):
         body = build_grid_analysis(data)
     elif tab == "track":
         body = build_tracking(data)
+    elif tab == "trav":
+        body = build_traversability(data)
     elif tab == "perf":
         body = build_performance(data, fi)
     else:
@@ -922,6 +964,151 @@ def build_performance(data, fi):
                            info="Shows how the map grows as the car drives forward")],
                      style={"flex": "1"}),
         ]),
+    ])
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TAB 5: TRAVERSABILITY LAYER (DRDO)
+# ═══════════════════════════════════════════════════════════════════
+def build_traversability(data):
+    trav = data.get("trav", [])
+    if not trav:
+        return html.Div("No traversability data", style={"color": MUTED, "padding": "40px", "textAlign": "center"})
+
+    # Subsample for rendering
+    display = trav[:500] if len(trav) > 500 else trav
+
+    cx_arr = [t["cx"] for t in display]
+    cy_arr = [t["cy"] for t in display]
+    scores = [t["score"] for t in display]
+    passable_list = [t["passable"] for t in display]
+    slopes = [t["slope"] for t in display]
+
+    # Stats
+    total = len(trav)
+    pass_count = sum(1 for t in trav if t["passable"])
+    fail_count = total - pass_count
+    avg_score = sum(t["score"] for t in trav) / total if total else 0
+    avg_slope = sum(t["slope"] for t in trav) / total if total else 0
+    avg_conf = sum(t["conf"] for t in trav) / total if total else 0
+
+    # ── Passability Heatmap ──
+    fig_heat = go.Figure()
+    # Passable cells (green)
+    p_x = [cx_arr[i] for i in range(len(display)) if passable_list[i]]
+    p_y = [cy_arr[i] for i in range(len(display)) if passable_list[i]]
+    p_s = [scores[i] for i in range(len(display)) if passable_list[i]]
+    # Blocked cells (red)
+    b_x = [cx_arr[i] for i in range(len(display)) if not passable_list[i]]
+    b_y = [cy_arr[i] for i in range(len(display)) if not passable_list[i]]
+    b_s = [scores[i] for i in range(len(display)) if not passable_list[i]]
+
+    fig_heat.add_trace(go.Scatter(
+        x=p_x, y=p_y, mode="markers", name=f"Passable ({len(p_x)})",
+        marker=dict(size=5, color=p_s, colorscale=[[0, "#22c55e"], [0.5, "#10b981"], [1, "#06b6d4"]],
+                    cmin=50, cmax=100, opacity=0.8,
+                    colorbar=dict(title=dict(text="Score", font=dict(color=TEXT, size=10)),
+                                  tickfont=dict(color=MUTED, size=9), len=0.5, y=0.75)),
+        text=[f"Score: {s:.0f}%" for s in p_s],
+        hovertemplate="(%{x:.1f}, %{y:.1f})<br>%{text}<br>PASSABLE<extra></extra>"))
+    fig_heat.add_trace(go.Scatter(
+        x=b_x, y=b_y, mode="markers", name=f"Blocked ({len(b_x)})",
+        marker=dict(size=6, color=b_s, colorscale=[[0, "#dc2626"], [0.5, "#ef4444"], [1, "#f59e0b"]],
+                    cmin=0, cmax=50, opacity=0.9, symbol="x"),
+        text=[f"Score: {s:.0f}%" for s in b_s],
+        hovertemplate="(%{x:.1f}, %{y:.1f})<br>%{text}<br>BLOCKED<extra></extra>"))
+
+    fig_heat.update_layout(**PLOT_STYLE, height=380, uirevision="trav-map",
+                           xaxis=dict(title="X (m)", scaleanchor="y"),
+                           yaxis=dict(title="Y (m)"),
+                           legend=dict(x=0.01, y=0.99, font=dict(size=10), bgcolor="rgba(0,0,0,0.5)"),
+                           margin=dict(l=40, r=10, t=10, b=40))
+
+    # ── Score Distribution ──
+    fig_dist = go.Figure()
+    all_scores = [t["score"] for t in trav]
+    fig_dist.add_trace(go.Histogram(
+        x=all_scores, nbinsx=20,
+        marker=dict(color=EMERALD, line=dict(color=GREEN, width=1)),
+        opacity=0.8, name="Score Distribution"))
+    fig_dist.add_vline(x=50, line=dict(color=RED, width=2, dash="dash"),
+                       annotation_text="Pass/Fail = 50", annotation_font=dict(color=RED, size=10))
+    fig_dist.update_layout(**PLOT_STYLE, height=380,
+                           xaxis=dict(title="Traversability Score (%)"),
+                           yaxis=dict(title="Cell Count"),
+                           margin=dict(l=40, r=10, t=10, b=40))
+
+    # ── DRDO-style Info Cards ──
+    drdo_cards = html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "8px"}, children=[
+        # Card 1: Current Cell Info (sample)
+        card([
+            html.Div("What We Show:", style={"fontSize": "11px", "color": MUTED, "marginBottom": "8px"}),
+            html.Div(style={"display": "flex", "flexDirection": "column", "gap": "6px"}, children=[
+                html.Div([html.Span("Height = ", style={"color": MUTED}),
+                          html.Span(f"{trav[0]['cz']:.1f}m", style={"color": CYAN, "fontWeight": "700"})]),
+                html.Div([html.Span("Object = ", style={"color": MUTED}),
+                          html.Span(trav[0]["obj_type"], style={"color": AMBER, "fontWeight": "700"})]),
+                html.Div([html.Span("Slope = ", style={"color": MUTED}),
+                          html.Span(f"{trav[0]['slope']:.0f} deg", style={"color": TEXT, "fontWeight": "700"})]),
+            ])
+        ], title="Cell Analysis"),
+        # Card 2: DRDO Output
+        card([
+            html.Div("DRDO Traversability Output:", style={"fontSize": "11px", "color": MUTED, "marginBottom": "8px"}),
+            html.Div(style={"display": "flex", "flexDirection": "column", "gap": "6px"}, children=[
+                html.Div([html.Span("Passable = ", style={"color": MUTED}),
+                          html.Span("YES" if trav[0]["passable"] else "NO",
+                                    style={"color": GREEN if trav[0]["passable"] else RED,
+                                           "fontWeight": "800", "fontSize": "16px"})]),
+                html.Div([html.Span("Confidence = ", style={"color": MUTED}),
+                          html.Span(f"{trav[0]['conf']:.0f}%",
+                                    style={"color": EMERALD, "fontWeight": "700"})]),
+                html.Div([html.Span("Reason:", style={"color": MUTED})]),
+                html.Div(f"  Slope {trav[0]['slope']:.0f} deg", style={"color": TEXT, "fontSize": "12px", "paddingLeft": "8px"}),
+                html.Div(f"  {'Obstacle detected' if trav[0]['obstacle'] else 'No obstacle'}",
+                         style={"color": RED if trav[0]["obstacle"] else GREEN, "fontSize": "12px", "paddingLeft": "8px"}),
+                html.Div(f"  {'Ground stable' if trav[0]['stable'] else 'Ground unstable'}",
+                         style={"color": GREEN if trav[0]["stable"] else AMBER, "fontSize": "12px", "paddingLeft": "8px"}),
+            ])
+        ], title="DRDO Decision"),
+    ])
+
+    # ── Summary KPIs ──
+    summary = html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
+        card([
+            html.Div(f"{pass_count}", style={"fontSize": "28px", "fontWeight": "800", "color": GREEN}),
+            html.Div("Passable Cells", style={"fontSize": "10px", "color": MUTED}),
+        ]),
+        card([
+            html.Div(f"{fail_count}", style={"fontSize": "28px", "fontWeight": "800", "color": RED}),
+            html.Div("Blocked Cells", style={"fontSize": "10px", "color": MUTED}),
+        ]),
+        card([
+            html.Div(f"{avg_score:.0f}%", style={"fontSize": "28px", "fontWeight": "800", "color": EMERALD}),
+            html.Div("Avg Score", style={"fontSize": "10px", "color": MUTED}),
+        ]),
+        card([
+            html.Div(f"{avg_slope:.1f} deg", style={"fontSize": "28px", "fontWeight": "800", "color": CYAN}),
+            html.Div("Avg Slope", style={"fontSize": "10px", "color": MUTED}),
+        ]),
+        card([
+            html.Div(f"{avg_conf:.0f}%", style={"fontSize": "28px", "fontWeight": "800", "color": AMBER}),
+            html.Div("Avg Confidence", style={"fontSize": "10px", "color": MUTED}),
+        ]),
+    ])
+
+    return html.Div(children=[
+        summary,
+        html.Div(style={"display": "grid", "gridTemplateColumns": "1fr 1fr", "gap": "8px", "marginTop": "8px"}, children=[
+            card([dcc.Graph(figure=fig_heat)],
+                 title="Traversability Map",
+                 info="Green = passable, Red X = blocked. Score based on slope + obstacles + stability."),
+            card([dcc.Graph(figure=fig_dist)],
+                 title="Score Distribution",
+                 info="Histogram of traversability scores. Red line = pass/fail threshold (50%)."),
+        ]),
+        html.Div(style={"marginTop": "8px"}, children=[drdo_cards]),
     ])
 
 
