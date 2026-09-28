@@ -250,7 +250,20 @@ app.index_string = '''<!DOCTYPE html>
     /* Smooth transitions */
     .dash-graph { transition: opacity 0.3s ease; }
     #_dash-app-content { animation: fadeIn 0.4s ease; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Tab hover */
+    .tab { transition: all 0.2s ease !important; }
+    .tab:hover { background: rgba(6,182,212,0.08) !important; }
+    .tab--selected { transition: all 0.2s ease !important; }
+
+    /* Button hover glow */
+    button { transition: all 0.2s ease !important; }
+    button:hover { filter: brightness(1.2) !important; transform: translateY(-1px); }
+    button:active { transform: translateY(0) scale(0.98); }
+
+    /* KPI cards subtle animation */
+    .js-plotly-plot { transition: opacity 0.3s ease; }
 </style>
 </head><body>
 <div id="loading-screen">
@@ -310,49 +323,54 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
 
     # ── CONTROLS ──────────────────────────────────────────────────
 
-    html.Div(style={"padding": "12px 24px 6px 24px",
+    html.Div(style={"padding": "14px 24px 8px 24px",
                      "borderBottom": f"1px solid {BORDER}",
                      "background": "linear-gradient(180deg, #131b2e, #0b0f19)"}, children=[
-        # Row 1: Buttons + Frame Label + Speed
-        html.Div(style={"display": "flex", "alignItems": "center", "gap": "10px",
-                         "marginBottom": "10px"}, children=[
+        # Row 1: Buttons centered + Frame Label right + Speed right
+        html.Div(style={"display": "flex", "alignItems": "center", "gap": "8px",
+                         "marginBottom": "12px"}, children=[
             html.Button("RESET", id="btn-rst", n_clicks=0, style={
-                "padding": "8px 18px", "border": f"2px solid {AMBER}", "backgroundColor": "transparent",
-                "color": AMBER, "borderRadius": "8px", "cursor": "pointer", "fontSize": "11px",
-                "fontWeight": "700", "letterSpacing": "1px"}),
-            html.Button("◀◀", id="btn-prv", n_clicks=0, style={
-                "padding": "8px 16px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
-                "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "13px", "fontWeight": "900"}),
+                "padding": "7px 14px", "border": f"1px solid {AMBER}", "backgroundColor": "transparent",
+                "color": AMBER, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px",
+                "fontWeight": "700", "letterSpacing": "1px", "transition": "all 0.2s"}),
+            html.Button("<<", id="btn-prv", n_clicks=0, style={
+                "padding": "7px 14px", "border": f"1px solid {CYAN}", "backgroundColor": "transparent",
+                "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900",
+                "transition": "all 0.2s"}),
             html.Button("PLAY", id="btn-play", n_clicks=0, style={
-                "padding": "10px 36px", "border": "none",
+                "padding": "10px 40px", "border": "none",
                 "background": f"linear-gradient(135deg, {GREEN}, {EMERALD})",
                 "color": "#fff", "borderRadius": "10px", "cursor": "pointer",
-                "fontWeight": "800", "fontSize": "15px", "letterSpacing": "2px",
-                "boxShadow": f"0 0 15px rgba(16,185,129,0.4)"}),
-            html.Button("▶▶", id="btn-nxt", n_clicks=0, style={
-                "padding": "8px 16px", "border": f"2px solid {CYAN}", "backgroundColor": "transparent",
-                "color": CYAN, "borderRadius": "8px", "cursor": "pointer", "fontSize": "13px", "fontWeight": "900"}),
-            html.Div(style={"flex": "1"}),  # spacer
-            html.Div(id="frame-lbl", style={"fontSize": "18px", "fontWeight": "800",
+                "fontWeight": "800", "fontSize": "14px", "letterSpacing": "2px",
+                "boxShadow": f"0 0 20px rgba(16,185,129,0.4)", "transition": "all 0.3s"}),
+            html.Button(">>", id="btn-nxt", n_clicks=0, style={
+                "padding": "7px 14px", "border": f"1px solid {CYAN}", "backgroundColor": "transparent",
+                "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "14px", "fontWeight": "900",
+                "transition": "all 0.2s"}),
+            html.Div(style={"flex": "1"}),
+            html.Div(id="frame-lbl", style={"fontSize": "16px", "fontWeight": "800",
                                               "color": CYAN, "textAlign": "center",
-                                              "textShadow": f"0 0 10px rgba(6,182,212,0.5)",
-                                              "padding": "4px 16px",
-                                              "border": f"1px solid {BORDER}", "borderRadius": "8px",
-                                              "background": "rgba(6,182,212,0.05)"}),
+                                              "textShadow": f"0 0 10px rgba(6,182,212,0.4)",
+                                              "padding": "6px 20px",
+                                              "border": f"1px solid rgba(6,182,212,0.3)", "borderRadius": "8px",
+                                              "background": "rgba(6,182,212,0.06)",
+                                              "minWidth": "140px"}),
             html.Div(style={"display": "flex", "gap": "4px", "marginLeft": "8px"}, children=[
                 html.Button("0.5x", id="spd-05", n_clicks=0, style={
-                    "padding": "6px 12px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
-                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px"}),
+                    "padding": "5px 10px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
+                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px",
+                    "transition": "all 0.2s"}),
                 html.Button("1x", id="spd-1", n_clicks=0, style={
-                    "padding": "6px 12px", "border": f"2px solid {CYAN}", "backgroundColor": CARD,
-                    "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px", "fontWeight": "700"}),
+                    "padding": "5px 10px", "border": f"2px solid {CYAN}", "backgroundColor": CARD,
+                    "color": CYAN, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px", "fontWeight": "700"}),
                 html.Button("2x", id="spd-2", n_clicks=0, style={
-                    "padding": "6px 12px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
-                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "11px"}),
+                    "padding": "5px 10px", "border": f"1px solid {BORDER}", "backgroundColor": CARD,
+                    "color": MUTED, "borderRadius": "6px", "cursor": "pointer", "fontSize": "10px",
+                    "transition": "all 0.2s"}),
             ]),
         ]),
         # Row 2: Full-width slider
-        html.Div(style={"padding": "0 4px 8px 4px"}, children=[
+        html.Div(style={"padding": "4px 8px 10px 8px"}, children=[
             dcc.Slider(id="slider", min=0, max=49, value=0, step=1,
                        marks={0: {"label": "0", "style": {"color": TEXT, "fontWeight": "700"}},
                               49: {"label": "49", "style": {"color": TEXT, "fontWeight": "700"}}},
