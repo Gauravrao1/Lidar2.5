@@ -132,7 +132,7 @@ def load_all(data_dir, max_frames, ckpt_path):
     lbl_dir = Path(data_dir) / "labels"
     bins = sorted(vel_dir.glob("*.bin"))[:max_frames]
     is_vercel = os.environ.get("VERCEL") == "1"
-    sub_limit = 8000 if is_vercel else 18000  # lighter on Vercel
+    sub_limit = 4000 if is_vercel else 18000  # ultra-light on Vercel
     for bf in bins:
         pts = load_bin(bf)
         lf = lbl_dir / f"{bf.stem}.label"
@@ -185,7 +185,8 @@ def load_all(data_dir, max_frames, ckpt_path):
         # For each cell: slope, obstacle presence, passability score
         trav_data = []
         rng_trav = np.random.default_rng(fi + 42)
-        for c in cells:
+        trav_cells = cells[:200] if len(cells) > 200 else cells  # limit for speed
+        for c in trav_cells:
             cx, cy, cz = c[2]  # center xyz
             cls_label = c[1]
             cs = c[3]  # cell_size
@@ -232,10 +233,47 @@ def load_all(data_dir, max_frames, ckpt_path):
 # ═══════════════════════════════════════════════════════════════════
 app = Dash(__name__, title="Adaptive LiDAR Mapping", suppress_callback_exceptions=True)
 
-# Custom CSS for slider styling (thick track, large handle, glow)
+# Custom index with loading screen + slider CSS + Google Fonts
 app.index_string = '''<!DOCTYPE html>
 <html><head>{%metas%}<title>{%title%}</title>{%favicon%}{%css%}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Inter', 'Segoe UI', sans-serif; background: #0b0f19; }
+
+    /* Loading screen */
+    #loading-screen {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #0b0f19; z-index: 9999;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        transition: opacity 0.5s ease;
+    }
+    #loading-screen.hide { opacity: 0; pointer-events: none; }
+    .pulse-ring {
+        width: 80px; height: 80px; border-radius: 50%;
+        border: 3px solid #06b6d4; opacity: 0;
+        animation: pulse 1.5s ease-out infinite;
+    }
+    .pulse-ring:nth-child(2) { animation-delay: 0.5s; position: absolute; }
+    .pulse-ring:nth-child(3) { animation-delay: 1s; position: absolute; }
+    @keyframes pulse {
+        0% { transform: scale(0.5); opacity: 0.8; }
+        100% { transform: scale(2.5); opacity: 0; }
+    }
+    .loader-dot {
+        width: 12px; height: 12px; border-radius: 50%;
+        background: #06b6d4; position: absolute;
+    }
+    .loading-text {
+        color: #e2e8f0; font-size: 18px; font-weight: 700;
+        margin-top: 30px; letter-spacing: 3px;
+    }
+    .loading-sub {
+        color: #64748b; font-size: 12px; margin-top: 8px;
+    }
+
+    /* Slider styling */
     #slider .rc-slider-rail { background: #1e293b !important; height: 10px !important; border-radius: 5px !important; }
     #slider .rc-slider-track { background: linear-gradient(90deg, #06b6d4, #8b5cf6) !important; height: 10px !important; border-radius: 5px !important; box-shadow: 0 0 12px rgba(6,182,212,0.4) !important; }
     #slider .rc-slider-handle { width: 22px !important; height: 22px !important; border: 3px solid #06b6d4 !important; background: #111827 !important; margin-top: -6px !important; box-shadow: 0 0 10px rgba(6,182,212,0.6) !important; opacity: 1 !important; }
@@ -244,9 +282,37 @@ app.index_string = '''<!DOCTYPE html>
     #slider .rc-slider-dot { display: none !important; }
     #slider .rc-slider-mark-text { font-size: 12px !important; font-weight: 700 !important; color: #e2e8f0 !important; }
     #slider .rc-slider-tooltip-inner { background: #111827 !important; border: 1px solid #06b6d4 !important; font-weight: 700 !important; font-size: 14px !important; padding: 4px 12px !important; color: #06b6d4 !important; }
-    body { margin: 0; }
+
+    /* Smooth transitions */
+    .dash-graph { transition: opacity 0.3s ease; }
+    #_dash-app-content { animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>
-</head><body>{%app_entry%}<footer>{%config%}{%scripts%}{%renderer%}</footer></body></html>'''
+</head><body>
+<div id="loading-screen">
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+        <div class="pulse-ring"></div>
+        <div class="pulse-ring"></div>
+        <div class="pulse-ring"></div>
+        <div class="loader-dot"></div>
+    </div>
+    <div class="loading-text">ADAPTIVE LiDAR</div>
+    <div class="loading-sub">Initializing point cloud engine...</div>
+</div>
+{%app_entry%}
+<footer>{%config%}{%scripts%}{%renderer%}</footer>
+<script>
+    // Hide loading screen when Dash renders
+    var observer = new MutationObserver(function(m) {
+        var el = document.getElementById('_dash-app-content');
+        if (el && el.children.length > 0) {
+            setTimeout(function(){ document.getElementById('loading-screen').classList.add('hide'); }, 300);
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
+</script>
+</body></html>'''
 
 app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
                               "fontFamily": "'Inter','Segoe UI',sans-serif", "color": TEXT}, children=[
