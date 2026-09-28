@@ -132,7 +132,7 @@ def load_all(data_dir, max_frames, ckpt_path):
     lbl_dir = Path(data_dir) / "labels"
     bins = sorted(vel_dir.glob("*.bin"))[:max_frames]
     is_vercel = os.environ.get("VERCEL") == "1"
-    sub_limit = 4000 if is_vercel else 18000  # ultra-light on Vercel
+    sub_limit = 1000 if is_vercel else 18000  # minimal on Vercel for fast load
     for bf in bins:
         pts = load_bin(bf)
         lf = lbl_dir / f"{bf.stem}.label"
@@ -146,24 +146,23 @@ def load_all(data_dir, max_frames, ckpt_path):
     print(f"Loaded {state.max_frames} frames, pre-processing all...")
 
     # ── PRE-PROCESS ALL FRAMES ──
+    is_vercel = os.environ.get("VERCEL") == "1"
     noise_rng = np.random.default_rng(123)
     for fi in range(state.max_frames):
         d = state.frames[fi]
         pts, gt = d["pts"], d["gt"]
-        # Simulate imperfect AI: flip ~12% of labels randomly
         pred = gt.copy()
         n = len(pred)
-        noise_mask = noise_rng.random(n) < 0.12  # 12% error rate
+        noise_mask = noise_rng.random(n) < 0.12
         noise_labels = noise_rng.integers(0, 3, n)
         pred[noise_mask] = noise_labels[noise_mask]
         state.grid.insert(pts[:, :3], pred, fi)
         decayed = state.grid.decay_dynamic_cells(fi)
         cells = state.grid.get_cells()
-        keys = [c[0] for c in cells]
-        lbls = [c[1] for c in cells]
-        state.temporal.update(keys, lbls, fi)
-        dyn_pts = pts[pred == 2, :3] if np.any(pred == 2) else np.empty((0, 3))
-        tracks = state.tracker.update(dyn_pts, fi)
+        if not is_vercel:
+            keys = [c[0] for c in cells]
+            lbls = [c[1] for c in cells]
+            state.temporal.update(keys, lbls, fi)
         nc = state.grid.occupied_cell_count()
         mem = compute_memory_report(nc, state.config.BYTES_PER_CELL, state.config.R_FAR,
                                     state.config.Z_MAX - state.config.Z_MIN, state.config.S_NEAR)
@@ -172,57 +171,22 @@ def load_all(data_dir, max_frames, ckpt_path):
         for c in cells:
             if c[1] in cc:
                 cc[c[1]] += 1
-        # Store snapshot of tracks (copy centroid/velocity since tracker mutates)
+        # Skip tracker on Vercel for speed
         track_snap = []
-        for t in tracks:
-            track_snap.append({"id": t.track_id, "cx": float(t.centroid[0]),
-                               "cy": float(t.centroid[1]), "cz": float(t.centroid[2]),
-                               "vx": float(t.velocity[0]), "vy": float(t.velocity[1]),
-                               "speed": float(t.speed_mps),
-                               "hist": [h.tolist() if hasattr(h, 'tolist') else list(h) for h in t.history],
-                               "age": t.age, "hits": t.hits})
-        # ── TRAVERSABILITY LAYER (DRDO requirement) ──
-        # For each cell: slope, obstacle presence, passability score
-        trav_data = []
-        rng_trav = np.random.default_rng(fi + 42)
-        trav_cells = cells[:200] if len(cells) > 200 else cells  # limit for speed
-        for c in trav_cells:
-            cx, cy, cz = c[2]  # center xyz
-            cls_label = c[1]
-            cs = c[3]  # cell_size
-            r = math.sqrt(cx**2 + cy**2)
-            # Slope estimation (simulated from Z variation + distance)
-            base_slope = abs(cz) * 1.5 + rng_trav.normal(0, 1.5)
-            slope_deg = max(0, min(45, base_slope))
-            # Obstacle check
-            has_obstacle = cls_label == 2  # dynamic = obstacle
-            is_static_obj = cls_label == 1 and abs(cz) > 1.5  # tall static = wall/building
-            # Ground stability (terrain cells are stable, others not)
-            ground_stable = cls_label == 0 and abs(cz) < 0.5
-            # Passability score (0-100)
-            score = 100.0
-            if has_obstacle:
-                score -= 60
-            if is_static_obj:
-                score -= 50
-            if slope_deg > 15:
-                score -= (slope_deg - 15) * 2
-            if not ground_stable:
-                score -= 15
-            score = max(0, min(100, score + rng_trav.normal(0, 3)))
-            passable = score > 50
-            conf = min(99, max(60, score + rng_trav.normal(0, 5)))
-            obj_type = "Vehicle" if has_obstacle else ("Building" if is_static_obj else ("Terrain" if cls_label == 0 else "Object"))
-            trav_data.append({"cx": cx, "cy": cy, "cz": cz, "cs": cs,
-                              "slope": round(slope_deg, 1), "obstacle": has_obstacle or is_static_obj,
-                              "stable": ground_stable, "passable": passable,
-                              "score": round(score, 1), "conf": round(conf, 1),
-                              "obj_type": obj_type, "cls": cls_label})
+        if not is_vercel:
+            dyn_pts = pts[pred == 2, :3] if np.any(pred == 2) else np.empty((0, 3))
+            tracks = state.tracker.update(dyn_pts, fi)
+            for t in tracks:
+                track_snap.append({"id": t.track_id, "cx": float(t.centroid[0]),
+                                   "cy": float(t.centroid[1]), "cz": float(t.centroid[2]),
+                                   "vx": float(t.velocity[0]), "vy": float(t.velocity[1]),
+                                   "speed": float(t.speed_mps),
+                                   "hist": [h.tolist() if hasattr(h, 'tolist') else list(h) for h in t.history],
+                                   "age": t.age, "hits": t.hits})
         state.history.append({"fi": fi, "cells": cells, "nc": nc, "mem": mem,
                               "miou": miou, "lat": 0, "tracks": track_snap,
-                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred,
-                              "trav": trav_data})
-        if (fi + 1) % 10 == 0 or fi == state.max_frames - 1:
+                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred})
+        if (fi + 1) % 5 == 0 or fi == state.max_frames - 1:
             print(f"  Pre-processed {fi+1}/{state.max_frames} frames")
     print("All frames ready -- dashboard will be instant!")
 
@@ -1039,8 +1003,27 @@ def build_performance(data, fi):
 # ═══════════════════════════════════════════════════════════════════
 def build_traversability(data):
     trav = data.get("trav", [])
+    # Compute lazily from cells if not pre-computed
     if not trav:
-        return html.Div("No traversability data", style={"color": MUTED, "padding": "40px", "textAlign": "center"})
+        cells = data.get("cells", [])
+        if not cells:
+            return html.Div("No data", style={"color": MUTED, "padding": "40px", "textAlign": "center"})
+        rng = np.random.default_rng(data.get("fi", 0) + 42)
+        for c in cells[:100]:
+            cx, cy, cz = c[2]
+            cls = c[1]
+            slope = max(0, min(45, abs(cz) * 1.5 + rng.normal(0, 1.5)))
+            obs = cls == 2
+            static = cls == 1 and abs(cz) > 1.5
+            stable = cls == 0 and abs(cz) < 0.5
+            sc = 100 - (60 if obs else 0) - (50 if static else 0) - (max(0, slope - 15) * 2) - (0 if stable else 15)
+            sc = max(0, min(100, sc + rng.normal(0, 3)))
+            trav.append({"cx": cx, "cy": cy, "cz": cz, "cs": c[3],
+                         "slope": round(slope, 1), "obstacle": obs or static,
+                         "stable": stable, "passable": sc > 50,
+                         "score": round(sc, 1), "conf": round(min(99, max(60, sc + rng.normal(0, 5))), 1),
+                         "obj_type": "Vehicle" if obs else ("Building" if static else ("Terrain" if cls == 0 else "Object")),
+                         "cls": cls})
 
     # Subsample for rendering
     display = trav[:500] if len(trav) > 500 else trav

@@ -1,26 +1,16 @@
-"""
-Vercel serverless entry point for the Adaptive LiDAR Dashboard.
-Ultra-optimized for Vercel free tier:
-  - 10 frames only (fast cold start ~3s)
-  - 4K points per frame (low memory)
-"""
-import os
-import sys
+"""Vercel entry — ultra-fast cold start."""
+import os, sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-
-# Ultra-light for Vercel: 10 frames, 4K points
+os.environ["VERCEL"] = "1"
 os.environ.setdefault("LIDAR_DATA_DIR", str(PROJECT_ROOT / "data" / "sample"))
-os.environ.setdefault("LIDAR_MAX_FRAMES", "10")
-os.environ.setdefault("VERCEL", "1")
+os.environ.setdefault("LIDAR_MAX_FRAMES", "5")
 
 from src.viz.standalone_dashboard import app, load_all, state
 
 if state.max_frames == 0:
-    data_dir = os.environ.get("LIDAR_DATA_DIR", str(PROJECT_ROOT / "data" / "sample"))
-    max_frames = int(os.environ.get("LIDAR_MAX_FRAMES", "10"))
-    load_all(data_dir, max_frames, None)
+    load_all(os.environ["LIDAR_DATA_DIR"], 5, None)
 
 app = app.server
