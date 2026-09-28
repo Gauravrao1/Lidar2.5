@@ -51,38 +51,53 @@ PLOT_STYLE = dict(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
 # HELPERS
 # ═══════════════════════════════════════════════════════════════════
 def card(children, title=None, info=None, glow=False, style_extra=None):
-    """Styled card wrapper with optional title and info tooltip."""
-    s = {"backgroundColor": CARD, "borderRadius": "14px", "padding": "16px",
-         "border": f"1px solid {BORDER}", "color": TEXT, "marginBottom": "8px"}
+    """Premium glassmorphism card with gradient top accent."""
+    s = {"backgroundColor": "rgba(15,23,42,0.85)", "borderRadius": "14px", "padding": "16px",
+         "border": f"1px solid rgba(148,163,184,0.12)", "color": TEXT, "marginBottom": "8px",
+         "backdropFilter": "blur(12px)", "WebkitBackdropFilter": "blur(12px)",
+         "boxShadow": "0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)",
+         "transition": "transform 0.2s ease, box-shadow 0.2s ease",
+         "position": "relative", "overflow": "hidden"}
     if glow:
-        s["boxShadow"] = f"0 0 20px rgba(6,182,212,0.15), inset 0 1px 0 rgba(255,255,255,0.05)"
+        s["boxShadow"] = f"0 0 30px rgba(6,182,212,0.12), 0 4px 20px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06)"
+        s["borderColor"] = "rgba(6,182,212,0.2)"
     if style_extra:
         s.update(style_extra)
     header = []
+    # Top gradient accent line
+    header.append(html.Div(style={"position": "absolute", "top": "0", "left": "0", "right": "0",
+                                   "height": "2px",
+                                   "background": f"linear-gradient(90deg, {CYAN}, {VIOLET}, transparent)"}))
     if title:
         header.append(html.Div(style={"display": "flex", "justifyContent": "space-between",
-                                       "alignItems": "flex-start", "marginBottom": "8px"}, children=[
-            html.Span(title, style={"fontSize": "14px", "fontWeight": "700",
-                                     "color": CYAN, "letterSpacing": "0.5px"}),
-            html.Span(info or "", style={"fontSize": "10px", "color": MUTED,
+                                       "alignItems": "flex-start", "marginBottom": "10px"}, children=[
+            html.Span(title, style={"fontSize": "13px", "fontWeight": "700",
+                                     "color": TEXT, "letterSpacing": "0.5px",
+                                     "textTransform": "uppercase"}),
+            html.Span(info or "", style={"fontSize": "9px", "color": MUTED,
                                           "maxWidth": "50%", "textAlign": "right",
-                                          "lineHeight": "1.3"})
+                                          "lineHeight": "1.3", "fontStyle": "italic"})
         ]))
     return html.Div(header + (children if isinstance(children, list) else [children]), style=s)
 
 
 def kpi(label, value, unit="", color=CYAN, desc=""):
-    """Single KPI metric block."""
-    return html.Div(style={"textAlign": "center", "padding": "10px 8px", "flex": "1",
-                            "minWidth": "100px"}, children=[
+    """KPI metric block with colored accent and glass background."""
+    return html.Div(style={"textAlign": "center", "padding": "12px 10px", "flex": "1",
+                            "minWidth": "100px", "position": "relative",
+                            "borderLeft": f"3px solid {color}",
+                            "background": f"linear-gradient(135deg, rgba(15,23,42,0.6), rgba(15,23,42,0.3))",
+                            "borderRadius": "8px", "margin": "0 2px"}, children=[
         html.Div(label, style={"fontSize": "9px", "color": MUTED, "textTransform": "uppercase",
-                                "letterSpacing": "1.5px", "fontWeight": "600", "marginBottom": "4px"}),
+                                "letterSpacing": "1.5px", "fontWeight": "600", "marginBottom": "6px"}),
         html.Div([
-            html.Span(str(value), style={"fontSize": "26px", "fontWeight": "800",
-                                          "color": color, "lineHeight": "1"}),
-            html.Span(f" {unit}", style={"fontSize": "12px", "color": MUTED}) if unit else None,
+            html.Span(str(value), style={"fontSize": "28px", "fontWeight": "800",
+                                          "color": color, "lineHeight": "1",
+                                          "textShadow": f"0 0 20px {color}40"}),
+            html.Span(f" {unit}", style={"fontSize": "11px", "color": MUTED, "fontWeight": "600"}) if unit else None,
         ]),
-        html.Div(desc, style={"fontSize": "9px", "color": MUTED, "marginTop": "3px"}) if desc else None,
+        html.Div(desc, style={"fontSize": "8px", "color": MUTED, "marginTop": "4px",
+                               "lineHeight": "1.3"}) if desc else None,
     ])
 
 
@@ -295,27 +310,34 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
                               "fontFamily": "'Inter','Segoe UI',sans-serif", "color": TEXT}, children=[
 
     # ── HEADER ────────────────────────────────────────────────────
-    html.Div(style={"background": f"linear-gradient(135deg, {BG}, #111827, #0f172a)",
-                     "padding": "18px 28px 12px",
-                     "borderBottom": f"1px solid {BORDER}"}, children=[
+    html.Div(style={"background": f"linear-gradient(135deg, #0d1321, #111827, #0f172a)",
+                     "padding": "20px 28px 14px",
+                     "borderBottom": f"1px solid rgba(6,182,212,0.15)",
+                     "boxShadow": "0 4px 30px rgba(0,0,0,0.4)"}, children=[
         html.Div(style={"display": "flex", "justifyContent": "space-between", "alignItems": "center"}, children=[
             html.Div([
                 html.H1("Adaptive LiDAR Mapping", style={
-                    "margin": "0", "fontSize": "24px", "fontWeight": "800",
-                    "background": f"linear-gradient(90deg, {CYAN}, {VIOLET})",
-                    "WebkitBackgroundClip": "text", "WebkitTextFillColor": "transparent"}),
+                    "margin": "0", "fontSize": "26px", "fontWeight": "900",
+                    "background": f"linear-gradient(90deg, {CYAN}, {VIOLET}, {CYAN})",
+                    "backgroundSize": "200% auto",
+                    "WebkitBackgroundClip": "text", "WebkitTextFillColor": "transparent",
+                    "letterSpacing": "0.5px"}),
                 html.Div("Variable-Resolution 2.5D Grid  |  Real-Time Dynamic Environment Perception",
-                         style={"fontSize": "11px", "color": MUTED, "marginTop": "2px"}),
+                         style={"fontSize": "11px", "color": MUTED, "marginTop": "4px",
+                                "letterSpacing": "0.5px"}),
             ]),
-            html.Div(style={"display": "flex", "gap": "8px", "alignItems": "center"}, children=[
-                html.Div([
-                    html.Span("FINE ZONE ", style={"fontSize": "9px", "color": MUTED}),
-                    html.Span("< 10m = 5cm cells", style={"fontSize": "11px", "color": GREEN, "fontWeight": "700"}),
+            html.Div(style={"display": "flex", "gap": "12px", "alignItems": "center"}, children=[
+                html.Div(style={"padding": "6px 14px", "borderRadius": "20px",
+                                "background": "rgba(16,185,129,0.1)",
+                                "border": f"1px solid rgba(16,185,129,0.25)"}, children=[
+                    html.Span("FINE ", style={"fontSize": "8px", "color": MUTED, "fontWeight": "600"}),
+                    html.Span("< 10m = 5cm", style={"fontSize": "11px", "color": GREEN, "fontWeight": "700"}),
                 ]),
-                html.Span("|", style={"color": BORDER}),
-                html.Div([
-                    html.Span("COARSE ZONE ", style={"fontSize": "9px", "color": MUTED}),
-                    html.Span("> 100m = 50cm cells", style={"fontSize": "11px", "color": RED, "fontWeight": "700"}),
+                html.Div(style={"padding": "6px 14px", "borderRadius": "20px",
+                                "background": "rgba(239,68,68,0.1)",
+                                "border": f"1px solid rgba(239,68,68,0.25)"}, children=[
+                    html.Span("COARSE ", style={"fontSize": "8px", "color": MUTED, "fontWeight": "600"}),
+                    html.Span("> 100m = 50cm", style={"fontSize": "11px", "color": RED, "fontWeight": "700"}),
                 ]),
             ]),
         ]),
@@ -384,33 +406,51 @@ app.layout = html.Div(style={"backgroundColor": BG, "minHeight": "100vh",
 
     # ── TABS ──────────────────────────────────────────────────────
     dcc.Tabs(id="tabs", value="sim",
+             style={"marginTop": "4px"},
              colors={"border": BG, "primary": CYAN, "background": CARD},
              children=[
                  dcc.Tab(label="Simulation View", value="sim",
-                         style={"backgroundColor": CARD, "color": TEXT},
-                         selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
+                         style={"backgroundColor": CARD, "color": MUTED, "padding": "12px 20px",
+                                "fontWeight": "600", "fontSize": "12px", "letterSpacing": "0.5px"},
+                         selected_style={"backgroundColor": BG, "color": CYAN,
+                                         "borderTop": f"3px solid {CYAN}", "fontWeight": "700",
+                                         "padding": "12px 20px", "fontSize": "12px"}),
                  dcc.Tab(label="Grid & Confidence", value="grid",
-                         style={"backgroundColor": CARD, "color": TEXT},
-                         selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
+                         style={"backgroundColor": CARD, "color": MUTED, "padding": "12px 20px",
+                                "fontWeight": "600", "fontSize": "12px", "letterSpacing": "0.5px"},
+                         selected_style={"backgroundColor": BG, "color": VIOLET,
+                                         "borderTop": f"3px solid {VIOLET}", "fontWeight": "700",
+                                         "padding": "12px 20px", "fontSize": "12px"}),
                  dcc.Tab(label="Object Tracking", value="track",
-                         style={"backgroundColor": CARD, "color": TEXT},
-                         selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
+                         style={"backgroundColor": CARD, "color": MUTED, "padding": "12px 20px",
+                                "fontWeight": "600", "fontSize": "12px", "letterSpacing": "0.5px"},
+                         selected_style={"backgroundColor": BG, "color": RED,
+                                         "borderTop": f"3px solid {RED}", "fontWeight": "700",
+                                         "padding": "12px 20px", "fontSize": "12px"}),
                  dcc.Tab(label="Traversability", value="trav",
-                         style={"backgroundColor": CARD, "color": TEXT},
-                         selected_style={"backgroundColor": BG, "color": EMERALD, "borderTop": f"2px solid {EMERALD}"}),
+                         style={"backgroundColor": CARD, "color": MUTED, "padding": "12px 20px",
+                                "fontWeight": "600", "fontSize": "12px", "letterSpacing": "0.5px"},
+                         selected_style={"backgroundColor": BG, "color": EMERALD,
+                                         "borderTop": f"3px solid {EMERALD}", "fontWeight": "700",
+                                         "padding": "12px 20px", "fontSize": "12px"}),
                  dcc.Tab(label="Performance & Memory", value="perf",
-                         style={"backgroundColor": CARD, "color": TEXT},
-                         selected_style={"backgroundColor": BG, "color": CYAN, "borderTop": f"2px solid {CYAN}"}),
+                         style={"backgroundColor": CARD, "color": MUTED, "padding": "12px 20px",
+                                "fontWeight": "600", "fontSize": "12px", "letterSpacing": "0.5px"},
+                         selected_style={"backgroundColor": BG, "color": AMBER,
+                                         "borderTop": f"3px solid {AMBER}", "fontWeight": "700",
+                                         "padding": "12px 20px", "fontSize": "12px"}),
              ]),
 
     html.Div(id="tab-body", style={"padding": "10px 16px"}),
 
     # ── FOOTER ────────────────────────────────────────────────────
-    html.Div(style={"padding": "12px 28px", "borderTop": f"1px solid {BORDER}",
-                     "textAlign": "center", "fontSize": "10px", "color": MUTED}, children=[
-        "Adaptive LiDAR Mapping System | Log-Linear Variable Resolution | ",
-        html.Span("Ghost Object Decay", style={"color": RED}),
-        " | All metrics from actual pipeline execution",
+    html.Div(style={"padding": "14px 28px", "borderTop": f"1px solid rgba(6,182,212,0.1)",
+                     "textAlign": "center", "fontSize": "10px", "color": MUTED,
+                     "background": "linear-gradient(180deg, transparent, rgba(6,182,212,0.02))"}, children=[
+        html.Span("Adaptive LiDAR Mapping System", style={"fontWeight": "700", "color": TEXT}),
+        html.Span("  |  Log-Linear Variable Resolution  |  ", style={"color": MUTED}),
+        html.Span("Ghost Object Decay", style={"color": RED, "fontWeight": "600"}),
+        html.Span("  |  Real-time Pipeline Metrics", style={"color": MUTED}),
     ]),
 
     dcc.Interval(id="ticker", interval=1200, n_intervals=0, disabled=True),
