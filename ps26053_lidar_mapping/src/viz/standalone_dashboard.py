@@ -164,6 +164,7 @@ def load_all(data_dir, max_frames, ckpt_path):
     is_vercel = os.environ.get("VERCEL") == "1"
     noise_rng = np.random.default_rng(123)
     for fi in range(state.max_frames):
+        t0 = time.time()  # start timing
         d = state.frames[fi]
         pts, gt = d["pts"], d["gt"]
         pred = gt.copy()
@@ -186,7 +187,6 @@ def load_all(data_dir, max_frames, ckpt_path):
         for c in cells:
             if c[1] in cc:
                 cc[c[1]] += 1
-        # Skip tracker on Vercel for speed
         track_snap = []
         if not is_vercel:
             dyn_pts = pts[pred == 2, :3] if np.any(pred == 2) else np.empty((0, 3))
@@ -198,11 +198,13 @@ def load_all(data_dir, max_frames, ckpt_path):
                                    "speed": float(t.speed_mps),
                                    "hist": [h.tolist() if hasattr(h, 'tolist') else list(h) for h in t.history],
                                    "age": t.age, "hits": t.hits})
+        lat_ms = (time.time() - t0) * 1000  # actual measured latency in ms
         state.history.append({"fi": fi, "cells": cells, "nc": nc, "mem": mem,
-                              "miou": miou, "lat": 0, "tracks": track_snap,
-                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred})
+                              "miou": miou, "lat": round(lat_ms, 2), "tracks": track_snap,
+                              "decayed": decayed, "cc": cc, "pts": pts, "pred": pred,
+                              "n_pts": len(pts)})
         if (fi + 1) % 5 == 0 or fi == state.max_frames - 1:
-            print(f"  Pre-processed {fi+1}/{state.max_frames} frames")
+            print(f"  Pre-processed {fi+1}/{state.max_frames} frames ({lat_ms:.0f}ms)")
     print("All frames ready -- dashboard will be instant!")
 
 
@@ -535,16 +537,20 @@ def render(fi, tab):
     cc = data["cc"]
 
     # ── KPI ROW ───────────────────────────────────────────────
+    fps = 1000.0 / lat if lat > 0 else 0
+    n_pts = data.get("n_pts", len(data["pts"]))
+
     kpi_row = card([
         html.Div(style={"display": "flex", "gap": "4px", "flexWrap": "wrap", "justifyContent": "space-around"}, children=[
             kpi("Frame", f"{fi}", f"/ {state.max_frames-1}", CYAN),
+            kpi("Points", f"{n_pts:,}", "", BLUE, f"per scan"),
             kpi("Grid Cells", f"{nc:,}", "", GREEN,
                 f"T:{cc[0]:,} | S:{cc[1]:,} | D:{cc[2]:,}"),
             kpi("Memory", f"{mem.adaptive_bytes/1024:.0f}", "KB", EMERALD,
-                f"vs {mem.uniform_2d_bytes/1e6:.0f} MB uniform"),
+                f"vs {mem.uniform_2d_bytes/1e6:.1f} MB uniform"),
             kpi("Saved", f"{mem.reduction_vs_2d_pct:.1f}", "%", EMERALD,
-                f"{(mem.uniform_2d_bytes - mem.adaptive_bytes)/1e6:.0f} MB saved"),
-            kpi("Latency", f"{lat:.0f}", "ms", CYAN, f"{fps:.1f} FPS"),
+                f"{(mem.uniform_2d_bytes - mem.adaptive_bytes)/1e6:.1f} MB saved"),
+            kpi("Latency", f"{lat:.1f}", "ms", CYAN, f"{fps:.1f} FPS"),
             kpi("mIoU", f"{miou:.3f}", "", AMBER, "Segmentation accuracy"),
             kpi("Tracked", f"{len(tracks)}", "objects", RED,
                 f"{data['decayed']} ghosts removed"),
@@ -971,12 +977,13 @@ def build_performance(data, fi):
     hist = [h for h in state.history[:fi + 1] if h is not None]
     frames = [h["fi"] for h in hist]
     mem = data["mem"]
+    # Use actual measured latency per frame
     lat_mean = np.mean([h["lat"] for h in hist]) if hist else 0
     fps = 1000.0 / lat_mean if lat_mean > 0 else 0
 
-    # Gauges
+    # Gauges — all real values
     g_mem = gauge(mem.reduction_vs_2d_pct, 100, "Memory Saved vs Uniform 2D", EMERALD)
-    g_fps = gauge(fps, 20, "Frames Per Second", CYAN, " fps")
+    g_fps = gauge(min(fps, 120), 120, "Frames Per Second", CYAN, " fps")
     g_miou = gauge(data["miou"] * 100, 100, "Segmentation mIoU", AMBER)
 
     # Memory bar
